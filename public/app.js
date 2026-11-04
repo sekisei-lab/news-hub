@@ -19,9 +19,9 @@ function renderTabs() {
   $("tabs").innerHTML = all.map(([k, l]) => `<button data-g="${k}" class="${k === genre ? "on" : ""}">${l}</button>`).join("");
 }
 
-async function load() {
+async function load(fresh = false) {
   try {
-    const r = await fetch(`${API}/api/news?genre=${genre}`);
+    const r = await fetch(`${API}/api/news?genre=${genre}${fresh ? "&fresh=1" : ""}`);
     const d = await r.json();
     genres = d.genres;
     renderTabs();
@@ -48,6 +48,15 @@ $("tabs").addEventListener("click", (e) => {
   load();
 });
 
+$("refresh").addEventListener("click", async () => {
+  const b = $("refresh");
+  if (b.classList.contains("busy")) return;
+  b.classList.add("busy");
+  window.scrollTo({ top: 0, behavior: "smooth" }); // 先頭へ戻る
+  await load(true); // サーバー側も最新化
+  b.classList.remove("busy");
+});
+
 load();
-setInterval(load, POLL_MS);
+setInterval(() => load(), POLL_MS);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });

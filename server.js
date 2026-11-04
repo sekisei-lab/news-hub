@@ -168,9 +168,13 @@ async function pool(items, n, fn) {
 // ---------- 集約 ----------
 const store = { updatedAt: 0, items: {}, errors: {} };
 let refreshing = null;
+let stage1 = Promise.resolve();
+const FORCE_MIN_MS = 30 * 1000; // 手動更新の最短間隔（連打でフィード元に負荷をかけない）
 
 async function refresh() {
   if (refreshing) return refreshing;
+  let stage1Done;
+  stage1 = new Promise((r) => (stage1Done = r)); // 記事一覧ができた時点で解決
   refreshing = (async () => {
     const byGenre = {};
     const errors = {};
@@ -219,6 +223,7 @@ async function refresh() {
     store.errors = errors;
     store.updatedAt = Date.now();
     console.log(new Date().toISOString(), "refreshed", Object.entries(store.items).map(([k, v]) => `${k}:${v.length}`).join(" "), Object.keys(errors).length ? `errors:${Object.keys(errors).length}` : "");
+    stage1Done();
     // 概要・画像が足りない記事だけ記事ページから補完（初回表示を待たせないよう後追い）
     const todo = Object.values(lists).flat().filter((i) => (needsDesc(i) || !i.image) && !ogCache.has(i.link));
     await pool(todo, 8, (i) => fetchOg(i.link));
@@ -226,7 +231,10 @@ async function refresh() {
       store.items = build();
       console.log(new Date().toISOString(), "enriched", todo.length);
     }
-  })().finally(() => (refreshing = null));
+  })().finally(() => {
+    stage1Done();
+    refreshing = null;
+  });
   return refreshing;
 }
 
@@ -241,7 +249,10 @@ const server = http.createServer(async (req, res) => {
       refresh(); // 初回のみ、記事一覧ができるまで待つ（画像補完は後追い）
       while (!store.updatedAt) await new Promise((r) => setTimeout(r, 200));
     }
-    else if (Date.now() - store.updatedAt > REFRESH_MS) refresh(); // 古ければ裏で更新
+    else if (url.searchParams.get("fresh") && Date.now() - store.updatedAt > FORCE_MIN_MS) {
+      refresh(); // 手動更新: 最新の一覧ができるまで待って返す
+      await stage1;
+    } else if (Date.now() - store.updatedAt > REFRESH_MS) refresh(); // 古ければ裏で更新
     const genre = url.searchParams.get("genre") || "all";
     const seen = new Set(); // 「すべて」では複数ジャンルに重複する記事を1件にまとめる
     let items =
