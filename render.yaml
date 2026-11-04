@@ -6,3 +6,4 @@ services:
     buildCommand: "true"
     startCommand: node server.js
     healthCheckPath: /healthz
+    autoDeployTrigger: commit
