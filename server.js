@@ -26,23 +26,32 @@ const POLITICS_KW = /首相|政府|与党|野党|国会|衆院|参院|大臣|官
 // 広告・PR記事は除外
 const AD_RE = /［PR］|\[PR\]|【PR】|\bPR\b|PR TIMES|プレスリリース|Sponsored/i;
 
+const ECON_KW = /経済|景気|物価|賃上げ|賃金|消費|関税|貿易|企業|業績|市場|価格|値上げ|需要|輸出|輸入|雇用|GDP|税/;
+const asahiAll = "https://www.asahi.com/rss/asahi/newsheadlines.rdf";
+// 古い記事も拾えるよう、ページ送りできるフィードは複数ページ取得する
+const pages = (genre, source, base, n, sep = "?paged=") =>
+  Array.from({ length: n - 1 }, (_, k) => ({ genre, source, url: base + sep + (k + 2) }));
+
 const FEEDS = [
-  { genre: "politics", source: "NHK", url: "https://www3.nhk.or.jp/rss/news/cat4.xml" },
   { genre: "politics", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/politics.rdf" },
+  { genre: "politics", source: "朝日新聞", url: asahiAll, filter: POLITICS_KW },
   { genre: "politics", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/domestic.xml", filter: POLITICS_KW },
-  { genre: "politics", source: "NHK", url: "https://www3.nhk.or.jp/rss/news/cat6.xml", filter: POLITICS_KW },
-  { genre: "economy", source: "NHK", url: "https://www3.nhk.or.jp/rss/news/cat5.xml" },
   { genre: "economy", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/business.rdf" },
+  { genre: "economy", source: "朝日新聞", url: asahiAll, filter: ECON_KW },
   { genre: "economy", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/business.xml" },
   { genre: "economy", source: "東洋経済", url: "https://toyokeizai.net/list/feed/rss" },
+  ...pages("economy", "東洋経済", "https://toyokeizai.net/list/feed/rss", 3, "?page="),
   { genre: "finance", source: "Investing.com", url: "https://jp.investing.com/rss/news.rss" },
-  { genre: "finance", source: "NHK", url: "https://www3.nhk.or.jp/rss/news/cat5.xml", filter: FINANCE_KW },
   { genre: "finance", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/business.xml", filter: FINANCE_KW },
   { genre: "finance", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/business.rdf", filter: FINANCE_KW },
+  { genre: "finance", source: "朝日新聞", url: asahiAll, filter: FINANCE_KW },
   { genre: "car", source: "レスポンス", url: "https://response.jp/rss/index.rdf" },
+  { genre: "car", source: "レスポンス", url: "https://response.jp/rss/index.rdf?page=2" },
   { genre: "car", source: "くるまのニュース", url: "https://kuruma-news.jp/feed" },
+  ...pages("car", "くるまのニュース", "https://kuruma-news.jp/feed", 8),
   { genre: "car", source: "Motor-Fan", url: "https://motor-fan.jp/feed" },
   { genre: "cosme", source: "WWD JAPAN", url: "https://www.wwdjapan.com/feed", filter: COSME_KW },
+  ...pages("cosme", "WWD JAPAN", "https://www.wwdjapan.com/feed", 2).map((f) => ({ ...f, filter: COSME_KW })),
   { genre: "cosme", source: "VOGUE JAPAN", url: "https://www.vogue.co.jp/feed/rss", filter: COSME_KW },
   { genre: "cosme", source: "FASHIONSNAP", url: "https://www.fashionsnap.com/rss.xml", filter: COSME_KW },
 ];
