@@ -82,6 +82,30 @@ function tag(block, name) {
   const m = new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, "i").exec(block);
   return m ? m[1] : "";
 }
+function absUrl(u, base) {
+  if (!u) return "";
+  try {
+    const x = new URL(decode(u), base).href;
+    return x.startsWith("http") ? x.replace(/^http:\/\//, "https://") : "";
+  } catch {
+    return "";
+  }
+}
+// RSS内の画像: media:content / media:thumbnail / enclosure / 本文中の<img>
+function findImage(block, base) {
+  const raw = block.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+  const cands = [
+    /<media:(?:content|thumbnail)[^>]+url=["']([^"']+)/i.exec(raw)?.[1],
+    /<enclosure[^>]+type=["']image[^>]+url=["']([^"']+)/i.exec(raw)?.[1],
+    /<enclosure[^>]+url=["']([^"']+\.(?:jpe?g|png|webp))/i.exec(raw)?.[1],
+    /<img[^>]+src=["']([^"']+)/i.exec(decode(raw))?.[1],
+  ];
+  for (const c of cands) {
+    const u = absUrl(c, base);
+    if (u && !/pixel|spacer|\.gif(\?|$)|logo/i.test(u)) return u;
+  }
+  return "";
+}
 function parseFeed(xml) {
   const blocks = xml.match(/<(item|entry)[\s>][\s\S]*?<\/\1>/gi) || [];
   return blocks.map((b) => {
@@ -94,6 +118,7 @@ function parseFeed(xml) {
       title: clean(tag(b, "title")),
       link,
       desc: clean(tag(b, "description") || tag(b, "content:encoded") || tag(b, "summary")),
+      image: findImage(b, link),
       cats,
       time: isNaN(t) ? 0 : t,
     };
@@ -115,13 +140,16 @@ const GENERIC_DESC = /最新の見出しを提供|最新ニュース|ニュー�
 const ogCache = new Map();
 async function fetchOg(url) {
   if (ogCache.has(url)) return ogCache.get(url);
-  let v = "";
+  const v = { desc: "", image: "" };
   try {
     const html = (await fetchText(url, 8000)).slice(0, 200000);
-    const m =
-      /<meta[^>]+(?:property|name)=["'](?:og:description|description)["'][^>]*content=["']([^"']*)["']/i.exec(html) ||
-      /<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["'](?:og:description|description)["']/i.exec(html);
-    v = m ? clean(m[1]) : "";
+    const meta = (re) => {
+      const m = new RegExp(`<meta[^>]+(?:property|name)=["'](?:${re})["'][^>]*content=["']([^"']*)["']`, "i").exec(html) ||
+        new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["'](?:${re})["']`, "i").exec(html);
+      return m ? clean(m[1]) : "";
+    };
+    v.desc = meta("og:description|description");
+    v.image = absUrl(meta("og:image|twitter:image"), url);
   } catch {}
   if (ogCache.size > 3000) ogCache.delete(ogCache.keys().next().value);
   ogCache.set(url, v);
@@ -159,35 +187,45 @@ async function refresh() {
         }
       })
     );
-    const out = {};
+    const lists = {};
     for (const g of Object.keys(GENRES)) {
       const seen = new Set();
-      const list = (byGenre[g] || [])
+      lists[g] = (byGenre[g] || [])
         .filter((i) => i.title && i.link && !seen.has(i.link) && seen.add(i.link))
         .sort((a, b) => b.time - a.time)
         .slice(0, MAX_PER_GENRE);
-      // 概要が無い/汎用文のものはページから補完
-      await pool(list, 6, async (i) => {
-        if (!i.desc || GENERIC_DESC.test(i.desc) || i.desc === i.title) i.desc = await fetchOg(i.link);
-      });
-      out[g] = list.map((i) => ({
-        title: i.title,
-        link: i.link.replace(/^http:\/\/(www3\.nhk)/, "https://$1"),
-        summary: trimSummary(i.desc, i.title),
-        source: i.source,
-        genre: i.genre,
-        time: i.time,
-      }));
     }
-    store.items = out;
+    const needsDesc = (i) => !i.desc || GENERIC_DESC.test(i.desc) || i.desc === i.title;
+    // キャッシュ済みの og 情報を使って組み立てる
+    const build = () => {
+      const out = {};
+      for (const g in lists) {
+        out[g] = lists[g].map((i) => {
+          const og = ogCache.get(i.link) || {};
+          return {
+            title: i.title,
+            link: i.link.replace(/^http:\/\/(www3\.nhk)/, "https://$1"),
+            summary: trimSummary(needsDesc(i) ? og.desc || "" : i.desc, i.title),
+            image: i.image || og.image || "",
+            source: i.source,
+            genre: i.genre,
+            time: i.time,
+          };
+        });
+      }
+      return out;
+    };
+    store.items = build();
     store.errors = errors;
     store.updatedAt = Date.now();
-    console.log(
-      new Date().toISOString(),
-      "refreshed",
-      Object.entries(out).map(([k, v]) => `${k}:${v.length}`).join(" "),
-      Object.keys(errors).length ? `errors:${Object.keys(errors).length}` : ""
-    );
+    console.log(new Date().toISOString(), "refreshed", Object.entries(store.items).map(([k, v]) => `${k}:${v.length}`).join(" "), Object.keys(errors).length ? `errors:${Object.keys(errors).length}` : "");
+    // 概要・画像が足りない記事だけ記事ページから補完（初回表示を待たせないよう後追い）
+    const todo = Object.values(lists).flat().filter((i) => (needsDesc(i) || !i.image) && !ogCache.has(i.link));
+    await pool(todo, 8, (i) => fetchOg(i.link));
+    if (todo.length) {
+      store.items = build();
+      console.log(new Date().toISOString(), "enriched", todo.length);
+    }
   })().finally(() => (refreshing = null));
   return refreshing;
 }
@@ -199,7 +237,10 @@ const PUBLIC = path.join(__dirname, "public");
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (url.pathname === "/api/news") {
-    if (!store.updatedAt) await refresh(); // 初回のみ待つ
+    if (!store.updatedAt) {
+      refresh(); // 初回のみ、記事一覧ができるまで待つ（画像補完は後追い）
+      while (!store.updatedAt) await new Promise((r) => setTimeout(r, 200));
+    }
     else if (Date.now() - store.updatedAt > REFRESH_MS) refresh(); // 古ければ裏で更新
     const genre = url.searchParams.get("genre") || "all";
     const seen = new Set(); // 「すべて」では複数ジャンルに重複する記事を1件にまとめる

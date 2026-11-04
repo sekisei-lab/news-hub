@@ -27,6 +27,7 @@ async function load() {
     renderTabs();
     $("list").innerHTML = d.items.length
       ? d.items.map((i) => `<a class="card" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
+          ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
           <h2>${esc(i.title)}</h2>
           <p>${esc(i.summary || "")}</p>
           <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time)}</span></div>
