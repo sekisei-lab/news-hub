@@ -6,7 +6,7 @@ const path = require("path");
 
 const PORT = process.env.PORT || 3000;
 const REFRESH_MS = 3 * 60 * 1000; // フィード再取得間隔
-const MAX_PER_GENRE = 40;
+const MAX_PER_GENRE = 150;
 const UA = "Mozilla/5.0 (compatible; NewsHub/1.0)";
 
 const GENRES = {
@@ -21,12 +21,16 @@ const GENRES = {
 const FINANCE_KW = /株価|株式市場|株式相場|日経平均|為替|円安|円高|ドル|日銀|金利|利上げ|利下げ|国債|銀行|証券|金融|投資|FRB|相場|決算|NISA|ビットコイン|暗号資産/;
 const COSME_KW = /美容|コスメ|ビューティ|スキンケア|化粧|メイク|メーキャップ|香水|フレグランス|ヘアケア|ネイル|リップ|ファンデ|資生堂|コーセー|カネボウ|ロレアル|ポーラ|シャネル ビューティ|ディオール ビューティ/;
 
+const POLITICS_KW = /首相|政府|与党|野党|国会|衆院|参院|大臣|官房長官|自民|立憲|公明|維新|国民民主|選挙|知事選|外交|首脳会談|内閣|議員|法案|条約/;
+
 // 広告・PR記事は除外
 const AD_RE = /［PR］|\[PR\]|【PR】|\bPR\b|PR TIMES|プレスリリース|Sponsored/i;
 
 const FEEDS = [
   { genre: "politics", source: "NHK", url: "https://www3.nhk.or.jp/rss/news/cat4.xml" },
   { genre: "politics", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/politics.rdf" },
+  { genre: "politics", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/domestic.xml", filter: POLITICS_KW },
+  { genre: "politics", source: "NHK", url: "https://www3.nhk.or.jp/rss/news/cat6.xml", filter: POLITICS_KW },
   { genre: "economy", source: "NHK", url: "https://www3.nhk.or.jp/rss/news/cat5.xml" },
   { genre: "economy", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/business.rdf" },
   { genre: "economy", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/business.xml" },
@@ -167,6 +171,11 @@ async function pool(items, n, fn) {
 
 // ---------- 集約 ----------
 const store = { updatedAt: 0, items: {}, errors: {} };
+const archive = new Map(); // "genre|link" -> 記事（期間内のものを蓄積）
+const DAYS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const JST = 9 * 60 * 60 * 1000;
+const jstMidnight = (t) => Math.floor((t + JST) / DAY_MS) * DAY_MS - JST; // その日の日本時間0:00
 let refreshing = null;
 let stage1 = Promise.resolve();
 const FORCE_MIN_MS = 30 * 1000; // 手動更新の最短間隔（連打でフィード元に負荷をかけない）
@@ -191,14 +200,24 @@ async function refresh() {
         }
       })
     );
-    const lists = {};
+    // 取得期間: 日本時間の0:00基準で「今日を含む3日分」。RSSから消えた記事も期間内は保持する
+    const cutoff = jstMidnight(Date.now()) - (DAYS - 1) * DAY_MS;
     for (const g of Object.keys(GENRES)) {
-      const seen = new Set();
-      lists[g] = (byGenre[g] || [])
-        .filter((i) => i.title && i.link && !seen.has(i.link) && seen.add(i.link))
-        .sort((a, b) => b.time - a.time)
-        .slice(0, MAX_PER_GENRE);
+      for (const i of byGenre[g] || []) {
+        if (!i.title || !i.link) continue;
+        const key = `${g}|${i.link}`;
+        const prev = archive.get(key);
+        if (prev) Object.assign(prev, { ...i, firstSeen: prev.firstSeen, time: i.time || prev.time });
+        else archive.set(key, { ...i, firstSeen: Date.now() });
+      }
     }
+    const lists = Object.fromEntries(Object.keys(GENRES).map((g) => [g, []]));
+    for (const [key, i] of archive) {
+      const t = i.time || i.firstSeen; // 日付なしの記事は初回取得時刻で判定
+      if (t < cutoff) archive.delete(key);
+      else lists[i.genre].push({ ...i, time: t });
+    }
+    for (const g in lists) lists[g] = lists[g].sort((a, b) => b.time - a.time).slice(0, MAX_PER_GENRE);
     const needsDesc = (i) => !i.desc || GENERIC_DESC.test(i.desc) || i.desc === i.title;
     // キャッシュ済みの og 情報を使って組み立てる
     const build = () => {
