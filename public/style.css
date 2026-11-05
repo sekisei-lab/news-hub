@@ -55,3 +55,6 @@ dialog button:disabled { opacity: .3; cursor: default; }
 #addForm button, #closeBtn { background: var(--accent); border-color: var(--accent); color: #fff; padding: 8px 14px; }
 .foot { display: flex; justify-content: space-between; margin-top: 14px; }
 dialog .ghost { background: none; color: var(--sub); }
+
+.right2 { display: flex; gap: 8px; }
+.right2 .ghost { border: 1px solid var(--line); }

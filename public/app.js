@@ -183,8 +183,18 @@ $("resetBtn").addEventListener("click", () => {
   prefs = { order: [], hidden: [], custom: [] };
   savePrefs(); tab = "all"; renderSettings(); render();
 });
-function openSettings() { renderSettings(); $("settings").showModal(); }
-$("closeBtn").addEventListener("click", () => $("settings").close());
+let snapshot = null; // 開いた時点の設定（キャンセルで戻す）
+function openSettings() {
+  snapshot = { prefs: JSON.parse(JSON.stringify(prefs)), tab };
+  renderSettings();
+  $("settings").showModal();
+}
+$("closeBtn").addEventListener("click", () => { snapshot = null; $("settings").close(); });
+$("cancelBtn").addEventListener("click", () => {
+  if (snapshot) { prefs = snapshot.prefs; tab = snapshot.tab; savePrefs(); store.set("newshub.tab", tab); render(); }
+  snapshot = null;
+  $("settings").close();
+});
 $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });
 
 load();
