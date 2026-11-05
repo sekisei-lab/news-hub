@@ -3,6 +3,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 
 const PORT = process.env.PORT || 3000;
 const REFRESH_MS = 3 * 60 * 1000; // フィード再取得間隔
@@ -15,6 +16,13 @@ const GENRES = {
   finance: { label: "金融" },
   car: { label: "車" },
   cosme: { label: "コスメ" },
+  national: { label: "国内" },
+  world: { label: "国際" },
+  sports: { label: "スポーツ" },
+  entertainment: { label: "エンタメ" },
+  it: { label: "IT" },
+  science: { label: "科学" },
+  life: { label: "ライフ" },
 };
 
 // filter: 指定すると、タイトル/概要/カテゴリにキーワードを含む記事だけ採用
@@ -54,6 +62,23 @@ const FEEDS = [
   ...pages("cosme", "WWD JAPAN", "https://www.wwdjapan.com/feed", 2).map((f) => ({ ...f, filter: COSME_KW })),
   { genre: "cosme", source: "VOGUE JAPAN", url: "https://www.vogue.co.jp/feed/rss", filter: COSME_KW },
   { genre: "cosme", source: "FASHIONSNAP", url: "https://www.fashionsnap.com/rss.xml", filter: COSME_KW },
+  { genre: "national", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/domestic.xml" },
+  { genre: "national", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/national.rdf" },
+  { genre: "world", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/world.xml" },
+  { genre: "world", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/international.rdf" },
+  { genre: "sports", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/sports.xml" },
+  { genre: "sports", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/sports.rdf" },
+  { genre: "entertainment", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/entertainment.xml" },
+  { genre: "entertainment", source: "livedoorニュース", url: "https://news.livedoor.com/topics/rss/ent.xml" },
+  { genre: "entertainment", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/culture.rdf" },
+  { genre: "it", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/it.xml" },
+  { genre: "it", source: "Impress Watch", url: "https://www.watch.impress.co.jp/data/rss/1.0/ipw/feed.rdf" },
+  { genre: "it", source: "GIGAZINE", url: "https://gigazine.net/news/rss_2.0/" },
+  { genre: "it", source: "Gizmodo Japan", url: "https://www.gizmodo.jp/index.xml" },
+  { genre: "science", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/science.xml" },
+  { genre: "science", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/science.rdf" },
+  { genre: "life", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/life.xml" },
+  { genre: "life", source: "ライフハッカー", url: "https://www.lifehacker.jp/feed/index.xml" },
 ];
 
 // ---------- 取得・パース ----------
@@ -282,17 +307,22 @@ const server = http.createServer(async (req, res) => {
       await stage1;
     } else if (Date.now() - store.updatedAt > REFRESH_MS) refresh(); // 古ければ裏で更新
     const genre = url.searchParams.get("genre") || "all";
-    const seen = new Set(); // 「すべて」では複数ジャンルに重複する記事を1件にまとめる
-    let items =
-      genre === "all"
-        ? Object.values(store.items).flat().sort((a, b) => b.time - a.time).filter((i) => !seen.has(i.link) && seen.add(i.link))
-        : store.items[genre] || [];
-    res.writeHead(200, {
-      "Content-Type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-      "Cache-Control": "no-cache",
-    });
-    return res.end(JSON.stringify({ updatedAt: store.updatedAt, genres: GENRES, items }));
+    // 「すべて」は同じ記事を1件にまとめ、属するジャンルを genres に全部入れる（画面側の絞り込み用）
+    const merged = new Map();
+    for (const i of Object.values(store.items).flat().sort((a, b) => b.time - a.time)) {
+      const m = merged.get(i.link);
+      if (m) m.genres.push(i.genre);
+      else merged.set(i.link, { ...i, genres: [i.genre] });
+    }
+    const items = genre === "all" ? [...merged.values()] : (store.items[genre] || []).map((i) => ({ ...i, genres: [i.genre] }));
+    const body = Buffer.from(JSON.stringify({ updatedAt: store.updatedAt, genres: GENRES, items }));
+    const headers = { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" };
+    if (/\bgzip\b/.test(req.headers["accept-encoding"] || "")) {
+      res.writeHead(200, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+      return res.end(zlib.gzipSync(body));
+    }
+    res.writeHead(200, headers);
+    return res.end(body);
   }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" });
