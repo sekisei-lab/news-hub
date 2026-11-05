@@ -112,36 +112,52 @@ $("refresh").addEventListener("click", async () => {
 
 // ---- 設定（タブの表示/並び順/キーワードタブ）----
 function renderSettings() {
-  const tabs = allTabs();
-  $("tabList").innerHTML = tabs
-    .map((t, idx) => `<li data-id="${esc(t.id)}">
+  $("tabList").innerHTML = allTabs()
+    .map((t) => `<li data-id="${esc(t.id)}">
+        <span class="grip" title="ドラッグして並び替え" aria-label="ドラッグして並び替え">⠿</span>
         <label><input type="checkbox" ${prefs.hidden.includes(t.id) ? "" : "checked"} data-act="vis"> ${esc(t.label)}${t.custom ? ` <small class="kw">${esc(prefs.custom.find((c) => c.id === t.id).kw)}</small>` : ""}</label>
-        <span class="ops">
-          <button data-act="up" ${idx === 0 ? "disabled" : ""} aria-label="上へ">▲</button>
-          <button data-act="down" ${idx === tabs.length - 1 ? "disabled" : ""} aria-label="下へ">▼</button>
-          ${t.custom ? `<button data-act="del" aria-label="削除">✕</button>` : ""}
-        </span>
+        ${t.custom ? `<button data-act="del" aria-label="削除">✕</button>` : ""}
       </li>`)
     .join("");
 }
 function commitOrder(ids) { prefs.order = ids; savePrefs(); renderSettings(); render(); }
 
 $("tabList").addEventListener("click", (e) => {
-  const act = e.target.dataset.act;
-  const li = e.target.closest("li");
-  if (!act || !li) return;
-  const id = li.dataset.id;
-  const ids = allTabs().map((t) => t.id);
-  const i = ids.indexOf(id);
-  if (act === "up" && i > 0) { [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]]; commitOrder(ids); }
-  if (act === "down" && i < ids.length - 1) { [ids[i + 1], ids[i]] = [ids[i], ids[i + 1]]; commitOrder(ids); }
-  if (act === "del") {
-    prefs.custom = prefs.custom.filter((c) => c.id !== id);
-    prefs.order = prefs.order.filter((x) => x !== id);
-    prefs.hidden = prefs.hidden.filter((x) => x !== id);
-    savePrefs(); renderSettings(); render();
-  }
+  if (e.target.dataset.act !== "del") return;
+  const id = e.target.closest("li").dataset.id;
+  prefs.custom = prefs.custom.filter((c) => c.id !== id);
+  prefs.order = prefs.order.filter((x) => x !== id);
+  prefs.hidden = prefs.hidden.filter((x) => x !== id);
+  savePrefs(); renderSettings(); render();
 });
+
+// ドラッグで並び替え（マウス・タッチ両対応）
+let dragLi = null;
+$("tabList").addEventListener("pointerdown", (e) => {
+  const grip = e.target.closest(".grip");
+  if (!grip) return;
+  dragLi = grip.closest("li");
+  dragLi.classList.add("drag");
+  $("tabList").setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+$("tabList").addEventListener("pointermove", (e) => {
+  if (!dragLi) return;
+  const others = [...$("tabList").children].filter((li) => li !== dragLi);
+  const next = others.find((li) => {
+    const r = li.getBoundingClientRect();
+    return e.clientY < r.top + r.height / 2;
+  });
+  $("tabList").insertBefore(dragLi, next || null);
+});
+const endDrag = () => {
+  if (!dragLi) return;
+  dragLi.classList.remove("drag");
+  dragLi = null;
+  commitOrder([...$("tabList").children].map((li) => li.dataset.id));
+};
+$("tabList").addEventListener("pointerup", endDrag);
+$("tabList").addEventListener("pointercancel", endDrag);
 $("tabList").addEventListener("change", (e) => {
   if (e.target.dataset.act !== "vis") return;
   const id = e.target.closest("li").dataset.id;
@@ -168,7 +184,6 @@ $("resetBtn").addEventListener("click", () => {
   savePrefs(); tab = "all"; renderSettings(); render();
 });
 function openSettings() { renderSettings(); $("settings").showModal(); }
-$("settingsBtn").addEventListener("click", openSettings);
 $("closeBtn").addEventListener("click", () => $("settings").close());
 $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });
 
