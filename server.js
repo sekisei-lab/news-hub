@@ -7,7 +7,7 @@ const zlib = require("zlib");
 
 const PORT = process.env.PORT || 3000;
 const REFRESH_MS = 3 * 60 * 1000; // フィード再取得間隔
-const MAX_PER_GENRE = 150;
+const MAX_PER_GENRE = 400;
 const UA = "Mozilla/5.0 (compatible; NewsHub/1.0)";
 
 const GENRES = {
@@ -56,7 +56,7 @@ const FEEDS = [
   { genre: "car", source: "レスポンス", url: "https://response.jp/rss/index.rdf" },
   { genre: "car", source: "レスポンス", url: "https://response.jp/rss/index.rdf?page=2" },
   { genre: "car", source: "くるまのニュース", url: "https://kuruma-news.jp/feed" },
-  ...pages("car", "くるまのニュース", "https://kuruma-news.jp/feed", 8),
+  ...pages("car", "くるまのニュース", "https://kuruma-news.jp/feed", 22),
   { genre: "car", source: "Motor-Fan", url: "https://motor-fan.jp/feed" },
   { genre: "cosme", source: "WWD JAPAN", url: "https://www.wwdjapan.com/feed", filter: COSME_KW },
   ...pages("cosme", "WWD JAPAN", "https://www.wwdjapan.com/feed", 2).map((f) => ({ ...f, filter: COSME_KW })),
@@ -206,7 +206,7 @@ async function pool(items, n, fn) {
 // ---------- 集約 ----------
 const store = { updatedAt: 0, items: {}, errors: {} };
 const archive = new Map(); // "genre|link" -> 記事（期間内のものを蓄積）
-const DAYS = 3;
+const DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const JST = 9 * 60 * 60 * 1000;
 const jstMidnight = (t) => Math.floor((t + JST) / DAY_MS) * DAY_MS - JST; // その日の日本時間0:00
@@ -234,7 +234,7 @@ async function refresh() {
         }
       })
     );
-    // 取得期間: 日本時間の0:00基準で「今日を含む3日分」。RSSから消えた記事も期間内は保持する
+    // 取得期間: 日本時間の0:00基準で「今日を含む7日分（1週間）」。RSSから消えた記事も期間内は保持する
     const cutoff = jstMidnight(Date.now()) - (DAYS - 1) * DAY_MS;
     for (const g of Object.keys(GENRES)) {
       for (const i of byGenre[g] || []) {
@@ -315,8 +315,10 @@ const server = http.createServer(async (req, res) => {
       else merged.set(i.link, { ...i, genres: [i.genre] });
     }
     const items = genre === "all" ? [...merged.values()] : (store.items[genre] || []).map((i) => ({ ...i, genres: [i.genre] }));
+    const etag = `"${store.updatedAt}-${genre}"`;
+    if (req.headers["if-none-match"] === etag) { res.writeHead(304, { ETag: etag }); return res.end(); } // 変更なしなら本文を送らない
     const body = Buffer.from(JSON.stringify({ updatedAt: store.updatedAt, genres: GENRES, items }));
-    const headers = { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" };
+    const headers = { ETag: etag, "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" };
     if (/\bgzip\b/.test(req.headers["accept-encoding"] || "")) {
       res.writeHead(200, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
       return res.end(zlib.gzipSync(body));

@@ -57,7 +57,7 @@ function renderTabs() {
   if (tab !== "all" && !vis.some((t) => t.id === tab)) tab = "all";
   $("tabs").innerHTML = [{ id: "all", label: "すべて" }, ...vis]
     .map((t) => `<button data-g="${esc(t.id)}" class="${t.id === tab ? "on" : ""}">${esc(t.label)}</button>`)
-    .join("");
+    .join("") + `<button class="add" data-add="1">＋ 追加・編集</button>`; // タブ列の末尾からも設定を開ける
 }
 
 function renderList() {
@@ -91,6 +91,7 @@ async function load(fresh = false) {
 }
 
 $("tabs").addEventListener("click", (e) => {
+  if (e.target.dataset.add) return openSettings();
   const g = e.target.dataset.g;
   if (!g) return;
   tab = g;
@@ -166,7 +167,8 @@ $("resetBtn").addEventListener("click", () => {
   prefs = { order: [], hidden: [], custom: [] };
   savePrefs(); tab = "all"; renderSettings(); render();
 });
-$("settingsBtn").addEventListener("click", () => { renderSettings(); $("settings").showModal(); });
+function openSettings() { renderSettings(); $("settings").showModal(); }
+$("settingsBtn").addEventListener("click", openSettings);
 $("closeBtn").addEventListener("click", () => $("settings").close());
 $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });
 
