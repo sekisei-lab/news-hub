@@ -164,7 +164,7 @@ function parseFeed(xml) {
 }
 
 // ---------- 概要の整形 ----------
-const SUMMARY_LEN = 110; // 2行に収まる目安
+const SUMMARY_LEN = 260; // 展開時の6行分の目安（通常表示は2行に切り詰め）
 function trimSummary(s, title) {
   if (!s) return "";
   s = s.replace(/\s*(続きを読む|Read more|\[…\]|…続きを読む).*$/i, "").trim();

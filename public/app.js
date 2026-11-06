@@ -60,17 +60,67 @@ function renderTabs() {
     .join("") + `<button class="add" data-add="1">＋ 追加・編集</button>`; // タブ列の末尾からも設定を開ける
 }
 
+let dirty = false; // カード展開中に更新が来たら、閉じた後に描画する
 function renderList() {
+  if (document.querySelector(".cell.open")) { dirty = true; return; }
+  dirty = false;
   const list = filtered();
   $("list").innerHTML = list.length
-    ? list.map((i) => `<a class="card" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
+    ? list.map((i) => `<div class="cell"><a class="card" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
         ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
         <h2>${esc(i.title)}</h2>
         <p>${esc(i.summary || "")}</p>
         <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time)}</span></div>
-      </a>`).join("")
+      </a></div>`).join("")
     : `<div class="empty">該当する記事がありません</div>`;
+  markOverflow();
 }
+// 概要が2行を超えるカードだけ「展開できる」印を付ける
+function markOverflow() {
+  for (const cell of document.querySelectorAll(".cell")) {
+    const p = cell.querySelector("p");
+    cell.classList.toggle("more", !!p && p.scrollHeight > p.clientHeight + 1);
+  }
+}
+let rz;
+window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(markOverflow, 200); });
+
+// 概要の展開: マウスを乗せる（タッチはタップ）と6行まで開く。周りのカードは動かさない
+function openCell(cell) {
+  if (cell.classList.contains("open") || !cell.classList.contains("more")) return;
+  cell.style.height = cell.offsetHeight + "px"; // 場所を確保して、下のカードがずれないようにする
+  cell.classList.add("open");
+}
+function closeCell(cell) {
+  cell.classList.remove("open");
+  cell.style.height = "";
+  if (dirty && !document.querySelector(".cell.open")) renderList();
+}
+const touchOnly = matchMedia("(hover: none)");
+$("list").addEventListener("mouseover", (e) => {
+  if (touchOnly.matches) return;
+  const cell = e.target.closest?.(".cell");
+  if (cell) openCell(cell);
+});
+$("list").addEventListener("mouseout", (e) => {
+  if (touchOnly.matches) return;
+  const cell = e.target.closest?.(".cell");
+  if (cell && !cell.contains(e.relatedTarget)) closeCell(cell);
+});
+$("list").addEventListener("click", (e) => {
+  if (!touchOnly.matches) return;
+  const cell = e.target.closest?.(".cell");
+  if (cell && cell.classList.contains("more") && !cell.classList.contains("open")) {
+    e.preventDefault(); // 1回目のタップは展開、2回目で記事を開く
+    document.querySelectorAll(".cell.open").forEach(closeCell);
+    openCell(cell);
+  }
+});
+document.addEventListener("click", (e) => {
+  if (!touchOnly.matches) return;
+  document.querySelectorAll(".cell.open").forEach((c) => { if (!c.contains(e.target)) closeCell(c); });
+});
+
 function render() {
   renderTabs();
   renderList();
