@@ -7,7 +7,8 @@ const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-let prefs = store.get("newshub.prefs", { order: [], hidden: [], custom: [] });
+let prefs = store.get("newshub.prefs", { order: [], hidden: [], custom: [], deleted: [] });
+prefs.deleted ||= []; // 削除したジャンル（標準ジャンルも削除できる）
 let tab = store.get("newshub.tab", "all");
 let genres = {};
 let items = [];
@@ -26,7 +27,7 @@ function ago(t) {
 
 // ---- タブ（標準ジャンル + 自分用キーワードタブ）----
 function allTabs() {
-  const base = Object.entries(genres).map(([id, g]) => ({ id, label: g.label }));
+  const base = Object.entries(genres).filter(([id]) => !prefs.deleted.includes(id)).map(([id, g]) => ({ id, label: g.label }));
   const custom = prefs.custom.map((c) => ({ id: c.id, label: c.label, custom: true }));
   const all = [...base, ...custom];
   const byId = new Map(all.map((t) => [t.id, t]));
@@ -166,7 +167,7 @@ function renderSettings() {
     .map((t) => `<li data-id="${esc(t.id)}">
         <span class="grip" title="ドラッグして並び替え" aria-label="ドラッグして並び替え">⠿</span>
         <label><input type="checkbox" ${prefs.hidden.includes(t.id) ? "" : "checked"} data-act="vis"> ${esc(t.label)}${t.custom ? ` <small class="kw">${esc(prefs.custom.find((c) => c.id === t.id).kw)}</small>` : ""}</label>
-        ${t.custom ? `<button data-act="del" aria-label="削除">✕</button>` : ""}
+        <button data-act="del" aria-label="削除">✕</button>
       </li>`)
     .join("");
 }
@@ -175,7 +176,8 @@ function commitOrder(ids) { prefs.order = ids; savePrefs(); renderSettings(); re
 $("tabList").addEventListener("click", (e) => {
   if (e.target.dataset.act !== "del") return;
   const id = e.target.closest("li").dataset.id;
-  prefs.custom = prefs.custom.filter((c) => c.id !== id);
+  if (id.startsWith("k:")) prefs.custom = prefs.custom.filter((c) => c.id !== id);
+  else prefs.deleted = [...prefs.deleted, id]; // 標準ジャンルは「初期化」で元に戻せる
   prefs.order = prefs.order.filter((x) => x !== id);
   prefs.hidden = prefs.hidden.filter((x) => x !== id);
   savePrefs(); renderSettings(); render();
@@ -229,7 +231,7 @@ $("addForm").addEventListener("submit", (e) => {
 });
 $("resetBtn").addEventListener("click", () => {
   if (!confirm("タブの設定を初期状態に戻します。よろしいですか？")) return;
-  prefs = { order: [], hidden: [], custom: [] };
+  prefs = { order: [], hidden: [], custom: [], deleted: [] };
   savePrefs(); tab = "all"; renderSettings(); render();
 });
 let snapshot = null; // 開いた時点の設定（キャンセルで戻す）

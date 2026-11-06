@@ -23,63 +23,16 @@ const GENRES = {
   it: { label: "IT" },
   science: { label: "科学" },
   life: { label: "ライフ" },
+  gourmet: { label: "グルメ" },
+  health: { label: "健康" },
+  travel: { label: "旅行" },
+  game: { label: "ゲーム" },
+  watch: { label: "腕時計" },
 };
-
-// filter: 指定すると、タイトル/概要/カテゴリにキーワードを含む記事だけ採用
-const FINANCE_KW = /株価|株式市場|株式相場|日経平均|為替|円安|円高|ドル|日銀|金利|利上げ|利下げ|国債|銀行|証券|金融|投資|FRB|相場|決算|NISA|ビットコイン|暗号資産/;
-const COSME_KW = /美容|コスメ|ビューティ|スキンケア|化粧|メイク|メーキャップ|香水|フレグランス|ヘアケア|ネイル|リップ|ファンデ|資生堂|コーセー|カネボウ|ロレアル|ポーラ|シャネル ビューティ|ディオール ビューティ/;
-
-const POLITICS_KW = /首相|政府|与党|野党|国会|衆院|参院|大臣|官房長官|自民|立憲|公明|維新|国民民主|選挙|知事選|外交|首脳会談|内閣|議員|法案|条約/;
 
 // 広告・PR記事は除外
 const AD_RE = /［PR］|\[PR\]|【PR】|\bPR\b|PR TIMES|プレスリリース|Sponsored/i;
-
-const ECON_KW = /経済|景気|物価|賃上げ|賃金|消費|関税|貿易|企業|業績|市場|価格|値上げ|需要|輸出|輸入|雇用|GDP|税/;
-const asahiAll = "https://www.asahi.com/rss/asahi/newsheadlines.rdf";
-// 古い記事も拾えるよう、ページ送りできるフィードは複数ページ取得する
-const pages = (genre, source, base, n, sep = "?paged=") =>
-  Array.from({ length: n - 1 }, (_, k) => ({ genre, source, url: base + sep + (k + 2) }));
-
-const FEEDS = [
-  { genre: "politics", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/politics.rdf" },
-  { genre: "politics", source: "朝日新聞", url: asahiAll, filter: POLITICS_KW },
-  { genre: "politics", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/domestic.xml", filter: POLITICS_KW },
-  { genre: "economy", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/business.rdf" },
-  { genre: "economy", source: "朝日新聞", url: asahiAll, filter: ECON_KW },
-  { genre: "economy", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/business.xml" },
-  { genre: "economy", source: "東洋経済", url: "https://toyokeizai.net/list/feed/rss" },
-  ...pages("economy", "東洋経済", "https://toyokeizai.net/list/feed/rss", 3, "?page="),
-  { genre: "finance", source: "Investing.com", url: "https://jp.investing.com/rss/news.rss" },
-  { genre: "finance", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/business.xml", filter: FINANCE_KW },
-  { genre: "finance", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/business.rdf", filter: FINANCE_KW },
-  { genre: "finance", source: "朝日新聞", url: asahiAll, filter: FINANCE_KW },
-  { genre: "car", source: "レスポンス", url: "https://response.jp/rss/index.rdf" },
-  { genre: "car", source: "レスポンス", url: "https://response.jp/rss/index.rdf?page=2" },
-  { genre: "car", source: "くるまのニュース", url: "https://kuruma-news.jp/feed" },
-  ...pages("car", "くるまのニュース", "https://kuruma-news.jp/feed", 22),
-  { genre: "car", source: "Motor-Fan", url: "https://motor-fan.jp/feed" },
-  { genre: "cosme", source: "WWD JAPAN", url: "https://www.wwdjapan.com/feed", filter: COSME_KW },
-  ...pages("cosme", "WWD JAPAN", "https://www.wwdjapan.com/feed", 2).map((f) => ({ ...f, filter: COSME_KW })),
-  { genre: "cosme", source: "VOGUE JAPAN", url: "https://www.vogue.co.jp/feed/rss", filter: COSME_KW },
-  { genre: "cosme", source: "FASHIONSNAP", url: "https://www.fashionsnap.com/rss.xml", filter: COSME_KW },
-  { genre: "national", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/domestic.xml" },
-  { genre: "national", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/national.rdf" },
-  { genre: "world", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/world.xml" },
-  { genre: "world", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/international.rdf" },
-  { genre: "sports", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/sports.xml" },
-  { genre: "sports", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/sports.rdf" },
-  { genre: "entertainment", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/entertainment.xml" },
-  { genre: "entertainment", source: "livedoorニュース", url: "https://news.livedoor.com/topics/rss/ent.xml" },
-  { genre: "entertainment", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/culture.rdf" },
-  { genre: "it", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/it.xml" },
-  { genre: "it", source: "Impress Watch", url: "https://www.watch.impress.co.jp/data/rss/1.0/ipw/feed.rdf" },
-  { genre: "it", source: "GIGAZINE", url: "https://gigazine.net/news/rss_2.0/" },
-  { genre: "it", source: "Gizmodo Japan", url: "https://www.gizmodo.jp/index.xml" },
-  { genre: "science", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/science.xml" },
-  { genre: "science", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/science.rdf" },
-  { genre: "life", source: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss/categories/life.xml" },
-  { genre: "life", source: "ライフハッカー", url: "https://www.lifehacker.jp/feed/index.xml" },
-];
+const { FEEDS } = require("./feeds");
 
 // ---------- 取得・パース ----------
 async function fetchText(url, timeout = 15000) {
@@ -206,7 +159,7 @@ async function pool(items, n, fn) {
 // ---------- 集約 ----------
 const store = { updatedAt: 0, items: {}, errors: {} };
 const archive = new Map(); // "genre|link" -> 記事（期間内のものを蓄積）
-const DAYS = 7;
+const DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const JST = 9 * 60 * 60 * 1000;
 const jstMidnight = (t) => Math.floor((t + JST) / DAY_MS) * DAY_MS - JST; // その日の日本時間0:00
@@ -234,7 +187,7 @@ async function refresh() {
         }
       })
     );
-    // 取得期間: 日本時間の0:00基準で「今日を含む7日分（1週間）」。RSSから消えた記事も期間内は保持する
+    // 取得期間: 日本時間の0:00基準で「今日を含む3日分」。RSSから消えた記事も期間内は保持する
     const cutoff = jstMidnight(Date.now()) - (DAYS - 1) * DAY_MS;
     for (const g of Object.keys(GENRES)) {
       for (const i of byGenre[g] || []) {
