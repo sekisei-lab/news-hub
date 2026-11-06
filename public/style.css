@@ -41,13 +41,14 @@ main { max-width: 1000px; margin: 0 auto; padding: 16px; }
 /* 設定 */
 .right { display: flex; align-items: center; gap: 10px; }
 nav button.add { border-style: dashed; color: var(--accent); border-color: var(--accent); }
-dialog { width: min(460px, 92vw); max-height: 86vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); padding: 18px; }
+dialog { width: min(540px, 94vw); max-height: 96vh; overflow: auto; scrollbar-width: none; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); padding: 16px; }
+dialog::-webkit-scrollbar { display: none; }
 dialog::backdrop { background: rgba(0, 0, 0, .45); }
 dialog h3 { margin: 0 0 4px; font-size: 16px; }
 dialog h4 { margin: 14px 0 6px; font-size: 13px; }
 .note { margin: 0 0 10px; font-size: 12px; color: var(--sub); }
 #tabList { list-style: none; margin: 0; padding: 0; }
-#tabList li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+#tabList li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 #tabList label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .kw { color: var(--sub); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grip { flex: none; cursor: grab; color: var(--sub); font-size: 18px; line-height: 1; padding: 4px 6px; touch-action: none; user-select: none; }
@@ -67,3 +68,13 @@ dialog .ghost { background: none; color: var(--sub); }
 
 .fab .lbl { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
 .fab .lbl small { font-size: 10px; font-weight: 400; opacity: .85; }
+
+.dlg { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; }
+.main { min-width: 0; }
+.side { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; }
+.side button { width: 92px; padding: 9px 0; }
+.side .ghost { border: 1px solid var(--line); }
+#addForm { display: flex; gap: 6px; margin-top: 12px; }
+#addForm input { flex: 1; min-width: 0; }
+#addForm button { flex: none; }
+.grip { padding: 2px 6px; }

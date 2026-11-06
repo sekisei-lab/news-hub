@@ -19,21 +19,21 @@
 <button id="refresh" class="fab" type="button" aria-label="最新に更新してトップへ戻る"><span class="ico">↻</span><span class="lbl"><span>更新</span><small id="status">--:--</small></span></button>
 
 <dialog id="settings">
-  <h3>ジャンル設定</h3>
-  <p class="note">チェックで表示/非表示、左の ⠿ をドラッグして並び替え。この設定はお使いのブラウザにだけ保存され、他の人には影響しません。</p>
-  <ul id="tabList"></ul>
-  <form id="addForm">
-    <h4>キーワードタブを追加</h4>
-    <input id="kwInput" placeholder="キーワード（スペース区切りでOR）例: 半導体 TSMC" required>
-    <input id="labelInput" placeholder="タブ名（省略可）">
-    <button type="submit">追加</button>
-  </form>
-  <div class="foot">
-    <button id="resetBtn" type="button" class="ghost">初期化</button>
-    <span class="right2">
+  <div class="dlg">
+    <div class="main">
+      <h3>ジャンル設定</h3>
+      <p class="note">チェックで表示/非表示、左の ⠿ をドラッグして並び替え。設定はこのブラウザにだけ保存され、他の人には影響しません。</p>
+      <ul id="tabList"></ul>
+      <form id="addForm">
+        <input id="kwInput" placeholder="キーワードタブを追加（例: 半導体 TSMC）" required>
+        <button type="submit">追加</button>
+      </form>
+    </div>
+    <div class="side">
+      <button id="resetBtn" type="button" class="ghost">初期化</button>
       <button id="cancelBtn" type="button" class="ghost">キャンセル</button>
       <button id="closeBtn" type="button">確定</button>
-    </span>
+    </div>
   </div>
 </dialog>
 

@@ -219,13 +219,12 @@ $("addForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const kw = $("kwInput").value.trim();
   if (!kw) return;
-  const label = $("labelInput").value.trim() || kw.split(/[\s、,，]+/)[0];
+  const label = kw.split(/[\s、,，]+/)[0]; // タブ名は先頭のキーワード
   const id = "k:" + Date.now().toString(36);
   prefs.custom.push({ id, label, kw });
   prefs.order = [...allTabs().map((t) => t.id)]; // 末尾に追加された状態で順序を確定
   savePrefs();
   $("kwInput").value = "";
-  $("labelInput").value = "";
   renderSettings(); render();
 });
 $("resetBtn").addEventListener("click", () => {
