@@ -78,3 +78,7 @@ dialog .ghost { background: none; color: var(--sub); }
 #addForm input { flex: 1; min-width: 0; }
 #addForm button { flex: none; }
 .grip { padding: 2px 6px; }
+
+.side #resetBtn { margin-top: auto; }
+.dlg { align-items: stretch; }
+.side { position: static; }
