@@ -64,3 +64,6 @@ dialog .ghost { background: none; color: var(--sub); }
 
 .right2 { display: flex; gap: 8px; }
 .right2 .ghost { border: 1px solid var(--line); }
+
+.fab .lbl { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.fab .lbl small { font-size: 10px; font-weight: 400; opacity: .85; }

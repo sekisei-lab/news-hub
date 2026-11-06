@@ -124,7 +124,7 @@ document.addEventListener("click", (e) => {
 function render() {
   renderTabs();
   renderList();
-  if (updatedAt) $("status").textContent = `更新 ${new Date(updatedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`;
+  if (updatedAt) $("status").textContent = new Date(updatedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
 }
 
 async function load(fresh = false) {
@@ -136,7 +136,7 @@ async function load(fresh = false) {
     updatedAt = d.updatedAt;
     render();
   } catch {
-    $("status").textContent = "取得に失敗しました（再試行します）";
+    $("status").textContent = "再試行中";
   }
 }
 
