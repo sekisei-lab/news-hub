@@ -18,6 +18,24 @@
 </main>
 <button id="refresh" class="fab" type="button" aria-label="最新に更新してトップへ戻る"><span class="ico">↻</span><span class="lbl"><span>更新</span><small id="status">--:--</small></span></button>
 
+<div id="reader" class="reader" hidden role="dialog" aria-modal="true" aria-label="記事の詳細">
+  <article class="rcard">
+    <div class="rbar">
+      <button id="rBack" type="button" class="rbtn">← 戻る</button>
+      <a id="rOrig" class="rbtn primary" target="_blank" rel="noopener noreferrer">原文を読む ↗</a>
+    </div>
+    <img id="rImg" class="rimg" alt="" referrerpolicy="no-referrer" hidden>
+    <div class="rmeta" id="rMeta"></div>
+    <h2 id="rTitle"></h2>
+    <div id="rText" class="rtext"></div>
+    <p id="rNote" class="rnote"></p>
+    <div class="rbar bottom">
+      <button id="rBack2" type="button" class="rbtn">← 戻る</button>
+      <a id="rOrig2" class="rbtn primary" target="_blank" rel="noopener noreferrer">原文を読む ↗</a>
+    </div>
+  </article>
+</div>
+
 <dialog id="settings">
   <div class="dlg">
     <div class="main">

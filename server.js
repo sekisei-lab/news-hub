@@ -33,6 +33,7 @@ const GENRES = {
 // 広告・PR記事は除外
 const AD_RE = /［PR］|\[PR\]|【PR】|\bPR\b|PR TIMES|プレスリリース|Sponsored/i;
 const { FEEDS } = require("./feeds");
+const makeExtractor = require("./article");
 
 // ---------- 取得・パース ----------
 async function fetchText(url, timeout = 15000) {
@@ -245,6 +246,7 @@ async function refresh() {
 }
 
 // ---------- HTTP ----------
+const extractArticle = makeExtractor({ fetchText, clean, absUrl });
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
 const PUBLIC = path.join(__dirname, "public");
 
@@ -278,6 +280,15 @@ const server = http.createServer(async (req, res) => {
     }
     res.writeHead(200, headers);
     return res.end(body);
+  }
+  if (url.pathname === "/api/article") {
+    // 一覧にある記事のURLだけ受け付ける（任意のURLを取りに行かせない）
+    const link = url.searchParams.get("link") || "";
+    const known = Object.values(store.items).some((list) => list.some((i) => i.link === link));
+    if (!known) { res.writeHead(404, { "Content-Type": "application/json" }); return res.end("{}"); }
+    const data = await extractArticle(link);
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=600" });
+    return res.end(JSON.stringify(data));
   }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" });

@@ -61,13 +61,15 @@ function renderTabs() {
     .join("") + `<button class="add" data-add="1">＋ 追加・編集</button>`; // タブ列の末尾からも設定を開ける
 }
 
+let shown = []; // いま画面に出している記事（カード番号と対応）
 let dirty = false; // カード展開中に更新が来たら、閉じた後に描画する
 function renderList() {
   if (document.querySelector(".cell.open")) { dirty = true; return; }
   dirty = false;
   const list = filtered();
+  shown = list;
   $("list").innerHTML = list.length
-    ? list.map((i) => `<div class="cell"><a class="card" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
+    ? list.map((i, n) => `<div class="cell"><a class="card" data-n="${n}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
         ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
         <h2>${esc(i.title)}</h2>
         <p>${esc(i.summary || "")}</p>
@@ -108,18 +110,13 @@ $("list").addEventListener("mouseout", (e) => {
   const cell = e.target.closest?.(".cell");
   if (cell && !cell.contains(e.relatedTarget)) closeCell(cell);
 });
+// カードをクリック/タップすると、新しいタブではなくサイト内の詳細表示を開く（Ctrl/中クリックは従来どおり原文へ）
 $("list").addEventListener("click", (e) => {
-  if (!touchOnly.matches) return;
-  const cell = e.target.closest?.(".cell");
-  if (cell && cell.classList.contains("more") && !cell.classList.contains("open")) {
-    e.preventDefault(); // 1回目のタップは展開、2回目で記事を開く
-    document.querySelectorAll(".cell.open").forEach(closeCell);
-    openCell(cell);
-  }
-});
-document.addEventListener("click", (e) => {
-  if (!touchOnly.matches) return;
-  document.querySelectorAll(".cell.open").forEach((c) => { if (!c.contains(e.target)) closeCell(c); });
+  const card = e.target.closest?.(".card");
+  if (!card || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+  e.preventDefault();
+  const item = shown[Number(card.dataset.n)];
+  if (item) openReader(item);
 });
 
 function render() {
@@ -251,3 +248,52 @@ $("settings").addEventListener("click", (e) => { if (e.target === $("settings"))
 load();
 setInterval(() => load(), POLL_MS);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+
+// ---- 記事の詳細（戻る / 原文を読む）----
+let readerOpen = false;
+let readerToken = 0;
+function openReader(item) {
+  const token = ++readerToken;
+  $("rTitle").textContent = item.title;
+  $("rMeta").innerHTML = `<span class="tag">${esc(genres[item.genre]?.label || "")}</span><span>${esc(item.source)}</span><span>${ago(item.time)}</span>`;
+  for (const id of ["rOrig", "rOrig2"]) $(id).href = item.link;
+  const img = $("rImg");
+  img.hidden = !item.image;
+  img.src = item.image || "";
+  img.onerror = () => { img.hidden = true; };
+  $("rText").innerHTML = item.summary ? `<p>${esc(item.summary)}</p><p class="loading">本文を読み込み中…</p>` : `<p class="loading">本文を読み込み中…</p>`;
+  $("rNote").textContent = "";
+  $("reader").hidden = false;
+  $("reader").scrollTop = 0;
+  document.body.classList.add("noscroll");
+  if (!readerOpen) history.pushState({ reader: 1 }, ""); // ブラウザの「戻る」でも閉じられる
+  readerOpen = true;
+  fetch(`${API}/api/article?link=${encodeURIComponent(item.link)}`)
+    .then((r) => r.json())
+    .then((d) => {
+      if (token !== readerToken) return; // 別の記事に切り替わっていたら無視
+      if (d.image && !item.image) { img.src = d.image; img.hidden = false; }
+      const paras = d.paragraphs?.length ? d.paragraphs : [item.summary || d.description].filter(Boolean);
+      $("rText").innerHTML = paras.length ? paras.map((p) => `<p>${esc(p)}</p>`).join("") : "";
+      $("rNote").textContent = d.paragraphs?.length
+        ? "※本文は冒頭のみ表示しています。続きは「原文を読む」からご覧ください。"
+        : "本文を取得できませんでした。「原文を読む」からご覧ください。";
+    })
+    .catch(() => {
+      if (token !== readerToken) return;
+      $("rText").innerHTML = item.summary ? `<p>${esc(item.summary)}</p>` : "";
+      $("rNote").textContent = "本文を取得できませんでした。「原文を読む」からご覧ください。";
+    });
+}
+function closeReaderUI() {
+  if (!readerOpen) return;
+  readerOpen = false;
+  $("reader").hidden = true;
+  document.body.classList.remove("noscroll");
+  if (dirty) renderList();
+}
+function backFromReader() { if (readerOpen && history.state?.reader) history.back(); else closeReaderUI(); }
+for (const id of ["rBack", "rBack2"]) $(id).addEventListener("click", backFromReader);
+$("reader").addEventListener("click", (e) => { if (e.target === $("reader")) backFromReader(); });
+window.addEventListener("popstate", closeReaderUI);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && readerOpen && !$("settings").open) backFromReader(); });
