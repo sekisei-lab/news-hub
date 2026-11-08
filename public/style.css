@@ -106,3 +106,14 @@ body.noscroll { overflow: hidden; }
 .rcard h2 { margin: 6px 0 10px; }
 .rcard .rtext { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 6px; overscroll-behavior: contain; border-top: 1px solid var(--line); padding-top: 12px; }
 .rcard .rnote { padding-top: 6px; }
+
+/* ジャンル設定: チェックではなく色で表示(ON)/非表示(OFF) */
+#tabList { display: grid; gap: 6px; }
+#tabList li { border: 1px solid var(--line); border-radius: 10px; padding: 2px 6px; transition: background .15s, color .15s; }
+#tabList li.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#tabList li.off { background: var(--bg); color: var(--sub); }
+#tabList li.on .grip, #tabList li.on .kw { color: rgba(255, 255, 255, .8); }
+#tabList label { cursor: pointer; padding: 6px 0; }
+#tabList input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+#tabList li.off label { text-decoration: line-through; text-decoration-color: rgba(128, 128, 128, .5); }
+#tabList li button { background: transparent; border-color: transparent; color: inherit; }

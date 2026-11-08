@@ -180,9 +180,9 @@ $("refresh").addEventListener("click", async () => {
 // ---- 設定（タブの表示/並び順/キーワードタブ）----
 function renderSettings() {
   $("tabList").innerHTML = allTabs()
-    .map((t) => `<li data-id="${esc(t.id)}">
+    .map((t) => `<li data-id="${esc(t.id)}" class="${prefs.hidden.includes(t.id) ? "off" : "on"}">
         <span class="grip" title="ドラッグして並び替え" aria-label="ドラッグして並び替え">⠿</span>
-        <label><input type="checkbox" ${prefs.hidden.includes(t.id) ? "" : "checked"} data-act="vis"> ${esc(t.label)}${t.custom ? ` <small class="kw">${esc(prefs.custom.find((c) => c.id === t.id).kw)}</small>` : ""}</label>
+        <label title="クリックで表示/非表示"><input type="checkbox" ${prefs.hidden.includes(t.id) ? "" : "checked"} data-act="vis"> ${esc(t.label)}${t.custom ? ` <small class="kw">${esc(prefs.custom.find((c) => c.id === t.id).kw)}</small>` : ""}</label>
         <button data-act="del" aria-label="削除">✕</button>
       </li>`)
     .join("");
@@ -228,7 +228,10 @@ $("tabList").addEventListener("pointerup", endDrag);
 $("tabList").addEventListener("pointercancel", endDrag);
 $("tabList").addEventListener("change", (e) => {
   if (e.target.dataset.act !== "vis") return;
-  const id = e.target.closest("li").dataset.id;
+  const li = e.target.closest("li");
+  const id = li.dataset.id;
+  li.classList.toggle("on", e.target.checked);
+  li.classList.toggle("off", !e.target.checked);
   prefs.hidden = e.target.checked ? prefs.hidden.filter((x) => x !== id) : [...prefs.hidden, id];
   savePrefs(); render();
 });
