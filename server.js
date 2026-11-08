@@ -182,6 +182,29 @@ async function pool(items, n, fn) {
 // ---------- 集約 ----------
 const store = { updatedAt: 0, items: {}, errors: {} };
 const archive = new Map(); // "genre|link" -> 記事（期間内のものを蓄積）
+// 再起動しても記事を失わないよう、ファイルに保存して起動時に読み戻す。
+// DATA_DIR をディスク（Render の有料プランなど）に向けると再デプロイ後も残る。無料プランでは再起動で消える。
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const SNAP = path.join(DATA_DIR, "archive.json");
+function loadSnapshot() {
+  try {
+    for (const [k, v] of JSON.parse(fs.readFileSync(SNAP, "utf8"))) archive.set(k, v);
+    console.log("snapshot loaded:", archive.size);
+  } catch {}
+}
+let savePending = false;
+function saveSnapshot() {
+  if (savePending) return;
+  savePending = true;
+  setTimeout(() => {
+    savePending = false;
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(SNAP + ".tmp", JSON.stringify([...archive]));
+      fs.renameSync(SNAP + ".tmp", SNAP);
+    } catch {}
+  }, 1000);
+}
 const DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const JST = 9 * 60 * 60 * 1000;
@@ -254,6 +277,7 @@ async function refresh() {
     store.updatedAt = Date.now();
     console.log(new Date().toISOString(), "refreshed", Object.entries(store.items).map(([k, v]) => `${k}:${v.length}`).join(" "), Object.keys(errors).length ? `errors:${Object.keys(errors).length}` : "");
     stage1Done();
+    saveSnapshot();
     // 概要・画像が足りない記事だけ記事ページから補完（初回表示を待たせないよう後追い）
     const todo = Object.values(lists).flat()
       .filter((i) => (needsDesc(i) || !i.image) && !ogCache.has(i.link))
@@ -289,6 +313,7 @@ function mergedList() {
 const extractArticle = makeExtractor({ fetchText, clean, absUrl });
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
 const PUBLIC = path.join(__dirname, "public");
+const assetVer = (f) => { try { return Math.floor(fs.statSync(path.join(PUBLIC, f)).mtimeMs / 1000).toString(36); } catch { return "0"; } };
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
@@ -339,7 +364,17 @@ const server = http.createServer(async (req, res) => {
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end("Not found"); }
-    res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
+    const headers = { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" };
+    if (p === "index.html") {
+      // JS/CSS のURLに版（ファイルの更新時刻）を付ける。中身が変わらない限りブラウザが使い回せる
+      headers["Cache-Control"] = "no-cache";
+      data = Buffer.from(data.toString("utf8").replace(/(href|src)="(style\.css|app\.js|config\.js)"/g, (m, a, f) => `${a}="${f}?v=${assetVer(f)}"`));
+    } else headers["Cache-Control"] = url.searchParams.get("v") ? "public, max-age=31536000, immutable" : "no-cache";
+    if (/gzip/.test(req.headers["accept-encoding"] || "") && /^(text\/|application\/(json|javascript))|svg/.test(headers["Content-Type"])) {
+      headers["Content-Encoding"] = "gzip";
+      data = zlib.gzipSync(data);
+    }
+    res.writeHead(200, headers);
     res.end(data);
   });
 });
@@ -348,6 +383,7 @@ const server = http.createServer(async (req, res) => {
 process.on("unhandledRejection", (e) => console.error("unhandledRejection:", e));
 process.on("uncaughtException", (e) => console.error("uncaughtException:", e));
 
+loadSnapshot();
 server.listen(PORT, () => {
   console.log(`News Hub on :${PORT}`);
   refresh();

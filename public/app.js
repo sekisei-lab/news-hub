@@ -7,8 +7,18 @@ const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-let prefs = store.get("newshub.prefs", { order: [], hidden: [], custom: [], deleted: [] });
-prefs.deleted ||= []; // 削除したジャンル（標準ジャンルも削除できる）
+const isNewVisitor = localStorage.getItem("newshub.prefs") === null; // 初めての人だけ、最初のタブを絞る
+let prefs = store.get("newshub.prefs", { order: [], hidden: [], custom: [], deleted: [], init: false });
+if (!isNewVisitor && prefs.init === undefined) prefs.init = true; // 以前から使っている人の設定は変えない
+prefs.deleted ||= [];
+// 初期表示のタブ（それ以外は設定でONにすると出る）
+const DEFAULT_TABS = ["national", "world", "politics", "economy", "finance", "it", "car", "cosme"];
+function applyDefaultTabs() {
+  if (prefs.init || !Object.keys(genres).length) return;
+  prefs.hidden = Object.keys(genres).filter((id) => !DEFAULT_TABS.includes(id));
+  prefs.init = true;
+  savePrefs();
+} // 削除したジャンル（標準ジャンルも削除できる）
 let tab = store.get("newshub.tab", "all");
 let genres = {};
 let items = [];
@@ -56,31 +66,60 @@ function renderTabs() {
     .join("") + `<button class="add" data-add="1">＋ 追加・編集</button>`; // タブ列の末尾からも設定を開ける
 }
 
+const readSet = new Set(store.get("newshub.read", []));
+function markRead(link) {
+  if (readSet.has(link)) return;
+  readSet.add(link);
+  store.set("newshub.read", [...readSet].slice(-800)); // 古いものから忘れる
+}
 let shown = []; // いま画面に出している記事（カード番号と対応）
 let total = 0; // 条件に合う記事の総数
-const cardHtml = (i, n) => `<div class="cell"><a class="card" data-n="${n}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
-        ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
+const cardHtml = (i, n) => `<div class="cell"><a class="card${readSet.has(i.link) ? " read" : ""}" data-n="${n}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
+        ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.classList.add('ld')" onerror="this.remove()">` : ""}
         <h2>${esc(i.title)}</h2>
         <p>${esc(i.summary || "")}</p>
         <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time)}</span></div>
       </a></div>`;
+// 段組み（カードを一番低い列へ積む。順番は上から下へおおむね新しい順）
+let colCount = 0;
+const calcCols = () => Math.max(1, Math.min(4, Math.floor($("list").clientWidth / 270)));
+function makeCols() {
+  colCount = calcCols();
+  $("list").innerHTML = Array.from({ length: colCount }, () => '<div class="col"></div>').join("");
+}
+function place(newItems, start) {
+  const cols = [...$("list").children];
+  newItems.forEach((i, k) => {
+    let low = cols[0];
+    for (const c of cols) if (c.offsetHeight < low.offsetHeight) low = c;
+    low.insertAdjacentHTML("beforeend", cardHtml(i, start + k));
+  });
+}
 function renderList() {
   shown = items;
-  $("list").innerHTML = items.length ? items.map(cardHtml).join("") : `<div class="empty">該当する記事がありません</div>`;
+  if (!items.length) { colCount = 0; $("list").innerHTML = '<div class="empty">該当する記事がありません</div>'; return; }
+  makeCols();
+  place(items, 0);
 }
 // 続きを後ろに足す（既に出しているカードは作り直さない）
 function appendList(newItems) {
   const start = shown.length;
   shown = items;
-  $("list").insertAdjacentHTML("beforeend", newItems.map((i, k) => cardHtml(i, start + k)).join(""));
+  if (!colCount) return renderList();
+  place(newItems, start);
 }
+let rz;
+window.addEventListener("resize", () => {
+  clearTimeout(rz);
+  rz = setTimeout(() => { if (items.length && calcCols() !== colCount) renderList(); }, 200);
+});
 // カードをクリック/タップすると、新しいタブではなくサイト内の詳細表示を開く（Ctrl/中クリックは従来どおり原文へ）
 $("list").addEventListener("click", (e) => {
   const card = e.target.closest?.(".card");
   if (!card || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
   e.preventDefault();
   const item = shown[Number(card.dataset.n)];
-  if (item) openReader(item);
+  if (item) { markRead(item.link); card.classList.add("read"); openReader(item); }
 });
 
 const PAGE = 48; // 1回に取得・描画するカード数
@@ -103,6 +142,7 @@ async function load({ fresh = false, poll = false } = {}) {
     const d = await r.json();
     if (id !== reqId) return; // 途中でタブが変わった等、古い応答は捨てる
     genres = d.genres;
+    applyDefaultTabs();
     const changed = d.updatedAt !== updatedAt || loadedTab !== tab;
     updatedAt = d.updatedAt;
     setStatus();
@@ -257,7 +297,8 @@ $("addForm").addEventListener("submit", (e) => {
 });
 $("resetBtn").addEventListener("click", () => {
   if (!confirm("タブの設定を初期状態に戻します。よろしいですか？")) return;
-  prefs = { order: [], hidden: [], custom: [], deleted: [] };
+  prefs = { order: [], hidden: [], custom: [], deleted: [], init: false };
+  applyDefaultTabs();
   savePrefs(); tab = "all"; renderSettings(); render();
 });
 let snapshot = null; // 開いた時点の設定（キャンセルで戻す）
