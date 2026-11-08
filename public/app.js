@@ -275,7 +275,7 @@ function openReader(item) {
   const token = ++readerToken;
   $("rTitle").textContent = item.title;
   $("rMeta").innerHTML = `<span class="tag">${esc(genres[item.genre]?.label || "")}</span><span>${esc(item.source)}</span><span>${ago(item.time)}</span>`;
-  for (const id of ["rOrig", "rOrig2"]) $(id).href = item.link;
+  $("rOrig2").href = item.link;
   const img = $("rImg");
   img.hidden = !item.image;
   img.src = item.image || "";
@@ -311,7 +311,7 @@ function closeReaderUI() {
   document.body.classList.remove("noscroll");
 }
 function backFromReader() { if (readerOpen && history.state?.reader) history.back(); else closeReaderUI(); }
-for (const id of ["rBack", "rBack2"]) $(id).addEventListener("click", backFromReader);
+$("rBack2").addEventListener("click", backFromReader);
 $("reader").addEventListener("click", (e) => { if (e.target === $("reader")) backFromReader(); });
 window.addEventListener("popstate", closeReaderUI);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && readerOpen && !$("settings").open) backFromReader(); });
