@@ -58,7 +58,6 @@ function renderTabs() {
 
 let shown = []; // いま画面に出している記事（カード番号と対応）
 let total = 0; // 条件に合う記事の総数
-let dirty = false; // カード展開中に更新が来たら、閉じた後に描画する
 const cardHtml = (i, n) => `<div class="cell"><a class="card" data-n="${n}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
         ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
         <h2>${esc(i.title)}</h2>
@@ -66,52 +65,15 @@ const cardHtml = (i, n) => `<div class="cell"><a class="card" data-n="${n}" href
         <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time)}</span></div>
       </a></div>`;
 function renderList() {
-  if (document.querySelector(".cell.open")) { dirty = true; return; }
-  dirty = false;
   shown = items;
   $("list").innerHTML = items.length ? items.map(cardHtml).join("") : `<div class="empty">該当する記事がありません</div>`;
-  markOverflow();
 }
 // 続きを後ろに足す（既に出しているカードは作り直さない）
 function appendList(newItems) {
   const start = shown.length;
   shown = items;
-  const before = $("list").children.length;
   $("list").insertAdjacentHTML("beforeend", newItems.map((i, k) => cardHtml(i, start + k)).join(""));
-  markOverflow([...$("list").children].slice(before));
 }
-// 概要が2行を超えるカードだけ「展開できる」印を付ける
-function markOverflow(cells = document.querySelectorAll(".cell")) {
-  for (const cell of cells) {
-    const p = cell.querySelector("p");
-    cell.classList.toggle("more", !!p && p.scrollHeight > p.clientHeight + 1);
-  }
-}
-let rz;
-window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(markOverflow, 200); });
-
-// 概要の展開: マウスを乗せる（タッチはタップ）と6行まで開く。周りのカードは動かさない
-function openCell(cell) {
-  if (cell.classList.contains("open") || !cell.classList.contains("more")) return;
-  cell.style.height = cell.offsetHeight + "px"; // 場所を確保して、下のカードがずれないようにする
-  cell.classList.add("open");
-}
-function closeCell(cell) {
-  cell.classList.remove("open");
-  cell.style.height = "";
-  if (dirty && !document.querySelector(".cell.open")) renderList();
-}
-const touchOnly = matchMedia("(hover: none)");
-$("list").addEventListener("mouseover", (e) => {
-  if (touchOnly.matches) return;
-  const cell = e.target.closest?.(".cell");
-  if (cell) openCell(cell);
-});
-$("list").addEventListener("mouseout", (e) => {
-  if (touchOnly.matches) return;
-  const cell = e.target.closest?.(".cell");
-  if (cell && !cell.contains(e.relatedTarget)) closeCell(cell);
-});
 // カードをクリック/タップすると、新しいタブではなくサイト内の詳細表示を開く（Ctrl/中クリックは従来どおり原文へ）
 $("list").addEventListener("click", (e) => {
   const card = e.target.closest?.(".card");
@@ -145,7 +107,7 @@ async function load({ fresh = false, poll = false } = {}) {
     updatedAt = d.updatedAt;
     setStatus();
     // 自動更新で中身が変わっていない、またはスクロールして読んでいる最中は、描画し直さない
-    if (poll && (!changed || window.scrollY > 300 || document.querySelector(".cell.open") || readerOpen)) { renderTabs(); return; }
+    if (poll && (!changed || window.scrollY > 300 || readerOpen)) { renderTabs(); return; }
     items = d.items;
     total = d.total;
     loadedTab = tab;
@@ -347,7 +309,6 @@ function closeReaderUI() {
   readerOpen = false;
   $("reader").hidden = true;
   document.body.classList.remove("noscroll");
-  if (dirty) renderList();
 }
 function backFromReader() { if (readerOpen && history.state?.reader) history.back(); else closeReaderUI(); }
 for (const id of ["rBack", "rBack2"]) $(id).addEventListener("click", backFromReader);

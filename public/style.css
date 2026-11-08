@@ -22,13 +22,9 @@ main { max-width: 1000px; margin: 0 auto; padding: 16px; }
 .thumb { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--line); }
 .card:hover { border-color: var(--accent); }
 .card h2 { font-size: 15px; margin: 0 0 6px; line-height: 1.45; }
-.card p { margin: 0 0 10px; font-size: 13px; color: var(--sub); display: -webkit-box; -webkit-line-clamp: 6; line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; max-height: 3em; min-height: 2.9em; transition: max-height .4s ease; }
+.card p { margin: 0 0 10px; font-size: 13px; color: var(--sub); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.9em; }
 .cell { position: relative; }
 .cell > .card { height: 100%; }
-.cell.more .card p { -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
-.cell.open { z-index: 20; }
-.cell.open > .card { position: absolute; top: 0; left: 0; right: 0; height: auto; border-color: var(--accent); box-shadow: 0 10px 28px rgba(0, 0, 0, .28); }
-.cell.open .card p { max-height: 9em; -webkit-mask-image: none; mask-image: none; }
 .meta { display: flex; gap: 8px; font-size: 11px; color: var(--sub); }
 .tag { color: var(--accent); }
 .fab { position: fixed; right: 16px; bottom: 20px; z-index: 10; display: flex; align-items: center; gap: 6px; padding: 12px 20px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
@@ -98,3 +94,15 @@ dialog .ghost { background: none; color: var(--sub); }
 .rtext .loading { color: var(--sub); }
 .rnote { font-size: 12px; color: var(--sub); margin: 4px 0 0; }
 body.noscroll { overflow: hidden; }
+
+/* 詳細表示: 画像・見出し・ボタンは固定、本文だけスクロール */
+.reader { overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.reader[hidden] { display: none; }
+.rcard { width: 100%; max-width: 720px; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+.rcard > * { flex: none; }
+.rbar { position: static; padding: 0 0 8px; }
+.rbar.bottom { margin-top: 12px; padding: 0; }
+.rimg { max-height: 220px; margin: 0 0 10px; }
+.rcard h2 { margin: 6px 0 10px; }
+.rcard .rtext { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 6px; overscroll-behavior: contain; border-top: 1px solid var(--line); padding-top: 12px; }
+.rcard .rnote { padding-top: 6px; }
