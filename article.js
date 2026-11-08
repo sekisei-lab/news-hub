@@ -26,7 +26,15 @@ module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
     const out = [];
     const seen = new Set();
     for (const m of h.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
+      // リンクの中にある段落・見出し/ランキング/関連用のクラスの段落は本文ではない
+      const before = h.slice(Math.max(0, m.index - 3000), m.index);
+      if (before.lastIndexOf("<a ") > before.lastIndexOf("</a>")) continue;
+      if (/class=["'][^"']*(title|ranking|related|recommend|news-list|caption|credit|tag|breadcrumb)/i.test(m[0].slice(0, m[0].indexOf(">") + 1))) continue;
       const t = clean(m[1]);
+      // 段落がほぼリンクだけ＝関連記事・ライブ情報などの誘導なので本文から外す
+      let linkLen = 0;
+      for (const a of m[1].matchAll(/<a[\s>][\s\S]*?<\/a>/gi)) linkLen += clean(a[0]).length;
+      if (t && linkLen / t.length >= 0.8) continue;
       // 長い段落はノイズ語を含んでいても本文として残す
       if (t.length < MIN_P || (t.length < 90 && NOISE.test(t)) || seen.has(t)) continue;
       seen.add(t);
