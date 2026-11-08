@@ -305,7 +305,7 @@ function openReader(item) {
       const paras = d.paragraphs?.length ? d.paragraphs : [item.summary || d.description].filter(Boolean);
       $("rText").innerHTML = paras.length ? paras.map((p) => `<p>${esc(p)}</p>`).join("") : "";
       $("rNote").textContent = d.paragraphs?.length
-        ? "※本文は冒頭のみ表示しています。続きは「原文を読む」からご覧ください。"
+        ? (d.pages > 1 ? `※${d.pages}ページ分の本文を表示しています。` : "") + "※自動抽出のため、写真・表・一部の文章が欠ける場合があります。完全な内容は「原文を読む」からご覧ください。"
         : "本文を取得できませんでした。「原文を読む」からご覧ください。";
     })
     .catch(() => {
