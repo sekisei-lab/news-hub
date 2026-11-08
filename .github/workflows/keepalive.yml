@@ -1,9 +1,10 @@
 # Render 無料プランは約15分アクセスがないと停止し、次の訪問者が30〜60秒待たされる。
 # 定期的に /healthz を呼んで起こしておく（GitHub Actions の最短間隔は5分。混雑時は遅れることがある）。
+# 日本時間 22:00〜翌7:00 は動かさない（cron は UTC。JST 7:00〜21:59 = UTC 22:00〜12:59）。
 name: keepalive
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/10 22,23,0-12 * * *"
   workflow_dispatch:
 jobs:
   ping:
