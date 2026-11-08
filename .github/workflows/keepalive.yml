@@ -1,0 +1,13 @@
+# Render 無料プランは約15分アクセスがないと停止し、次の訪問者が30〜60秒待たされる。
+# 定期的に /healthz を呼んで起こしておく（GitHub Actions の最短間隔は5分。混雑時は遅れることがある）。
+name: keepalive
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ping
+        run: curl -fsS --max-time 60 --retry 2 https://news-hub-q456.onrender.com/healthz
