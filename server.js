@@ -148,6 +148,28 @@ async function fetchOg(url) {
   return v;
 }
 
+const feedCache = new Map(); // url -> { etag, lastMod, items }
+async function fetchFeedItems(url) {
+  const c = feedCache.get(url);
+  const headers = { "User-Agent": UA, Accept: "*/*" };
+  if (c?.etag) headers["If-None-Match"] = c.etag;
+  if (c?.lastMod) headers["If-Modified-Since"] = c.lastMod;
+  const res = await fetch(url, { headers, redirect: "follow", signal: AbortSignal.timeout(15000) });
+  if (res.status === 304 && c) return c.items;
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buf = new Uint8Array(await res.arrayBuffer());
+  let charset = /charset=([\w-]+)/i.exec(res.headers.get("content-type") || "")?.[1];
+  if (!charset) {
+    const head = new TextDecoder("latin1").decode(buf.slice(0, 1024));
+    charset = /encoding=["']([\w-]+)|charset=["']?([\w-]+)/i.exec(head)?.slice(1).find(Boolean);
+  }
+  let text;
+  try { text = new TextDecoder(charset || "utf-8").decode(buf); } catch { text = new TextDecoder("utf-8").decode(buf); }
+  const items = parseFeed(text);
+  feedCache.set(url, { etag: res.headers.get("etag"), lastMod: res.headers.get("last-modified"), items });
+  return items;
+}
+
 async function pool(items, n, fn) {
   let i = 0;
   await Promise.all(
@@ -166,6 +188,7 @@ const JST = 9 * 60 * 60 * 1000;
 const jstMidnight = (t) => Math.floor((t + JST) / DAY_MS) * DAY_MS - JST; // その日の日本時間0:00
 let refreshing = null;
 let stage1 = Promise.resolve();
+const ENRICH_MAX = 120; // 1回の更新で記事ページを取りに行く上限（残りは次回以降に少しずつ）
 const FORCE_MIN_MS = 30 * 1000; // 手動更新の最短間隔（連打でフィード元に負荷をかけない）
 
 async function refresh() {
@@ -179,7 +202,7 @@ async function refresh() {
     await Promise.all(
       FEEDS.map(async (f) => {
         try {
-          if (!rawCache.has(f.url)) rawCache.set(f.url, fetchText(f.url).then(parseFeed));
+          if (!rawCache.has(f.url)) rawCache.set(f.url, fetchFeedItems(f.url));
           let items = (await rawCache.get(f.url)).filter((i) => !AD_RE.test(i.title));
           if (f.filter) items = items.filter((i) => f.filter.test(`${i.title} ${i.desc} ${i.cats}`.replace(/株式会社/g, "")));
           (byGenre[f.genre] ||= []).push(...items.map((i) => ({ ...i, source: f.source, genre: f.genre })));
@@ -232,8 +255,11 @@ async function refresh() {
     console.log(new Date().toISOString(), "refreshed", Object.entries(store.items).map(([k, v]) => `${k}:${v.length}`).join(" "), Object.keys(errors).length ? `errors:${Object.keys(errors).length}` : "");
     stage1Done();
     // 概要・画像が足りない記事だけ記事ページから補完（初回表示を待たせないよう後追い）
-    const todo = Object.values(lists).flat().filter((i) => (needsDesc(i) || !i.image) && !ogCache.has(i.link));
-    await pool(todo, 8, (i) => fetchOg(i.link));
+    const todo = Object.values(lists).flat()
+      .filter((i) => (needsDesc(i) || !i.image) && !ogCache.has(i.link))
+      .sort((a, b) => b.time - a.time)
+      .slice(0, ENRICH_MAX);
+    await pool(todo, 4, (i) => fetchOg(i.link));
     if (todo.length) {
       store.items = build();
       console.log(new Date().toISOString(), "enriched", todo.length);
@@ -243,6 +269,20 @@ async function refresh() {
     refreshing = null;
   });
   return refreshing;
+}
+
+// 全ジャンルを1本にまとめ（同じ記事は1件、所属ジャンルは genres に全部）、更新ごとに1回だけ作る
+let mergedCache = { at: 0, list: [] };
+function mergedList() {
+  if (mergedCache.at === store.updatedAt) return mergedCache.list;
+  const merged = new Map();
+  for (const i of Object.values(store.items).flat().sort((x, y) => y.time - x.time)) {
+    const m = merged.get(i.link);
+    if (m) m.genres.push(i.genre);
+    else merged.set(i.link, { ...i, genres: [i.genre] });
+  }
+  mergedCache = { at: store.updatedAt, list: [...merged.values()] };
+  return mergedCache.list;
 }
 
 // ---------- HTTP ----------
@@ -262,17 +302,15 @@ const server = http.createServer(async (req, res) => {
       await stage1;
     } else if (Date.now() - store.updatedAt > REFRESH_MS) refresh(); // 古ければ裏で更新
     const genre = url.searchParams.get("genre") || "all";
-    // 「すべて」は同じ記事を1件にまとめ、属するジャンルを genres に全部入れる（画面側の絞り込み用）
-    const merged = new Map();
-    for (const i of Object.values(store.items).flat().sort((a, b) => b.time - a.time)) {
-      const m = merged.get(i.link);
-      if (m) m.genres.push(i.genre);
-      else merged.set(i.link, { ...i, genres: [i.genre] });
-    }
-    const items = genre === "all" ? [...merged.values()] : (store.items[genre] || []).map((i) => ({ ...i, genres: [i.genre] }));
-    const etag = `"${store.updatedAt}-${genre}"`;
+    const q = (url.searchParams.get("q") || "").toLowerCase().split(/[\s、,，]+/).filter(Boolean);
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit")) || 60, 1), 200);
+    const offset = Math.max(parseInt(url.searchParams.get("offset")) || 0, 0);
+    const etag = `"${store.updatedAt}-${encodeURIComponent(genre)}-${encodeURIComponent(q.join("+"))}-${limit}-${offset}"`; // ヘッダーは ASCII のみ
     if (req.headers["if-none-match"] === etag) { res.writeHead(304, { ETag: etag }); return res.end(); } // 変更なしなら本文を送らない
-    const body = Buffer.from(JSON.stringify({ updatedAt: store.updatedAt, genres: GENRES, items }));
+    let list = mergedList();
+    if (genre !== "all") list = list.filter((i) => i.genres.includes(genre));
+    if (q.length) list = list.filter((i) => { const t = (i.title + " " + i.summary).toLowerCase(); return q.some((k) => t.includes(k)); });
+    const body = Buffer.from(JSON.stringify({ updatedAt: store.updatedAt, genres: GENRES, total: list.length, offset, items: list.slice(offset, offset + limit) }));
     const headers = { ETag: etag, "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" };
     if (/\bgzip\b/.test(req.headers["accept-encoding"] || "")) {
       res.writeHead(200, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
@@ -305,6 +343,10 @@ const server = http.createServer(async (req, res) => {
     res.end(data);
   });
 });
+
+// 1件のリクエストのエラーでサーバー全体が止まらないようにする
+process.on("unhandledRejection", (e) => console.error("unhandledRejection:", e));
+process.on("uncaughtException", (e) => console.error("uncaughtException:", e));
 
 server.listen(PORT, () => {
   console.log(`News Hub on :${PORT}`);

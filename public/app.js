@@ -41,16 +41,11 @@ function keywords(id) {
   const c = prefs.custom.find((x) => x.id === id);
   return c ? c.kw.split(/[\s、,，]+/).filter(Boolean).map((k) => k.toLowerCase()) : [];
 }
-function filtered() {
-  if (tab === "all") return items;
-  if (tab.startsWith("k:")) {
-    const kws = keywords(tab);
-    return items.filter((i) => {
-      const text = `${i.title} ${i.summary || ""}`.toLowerCase();
-      return kws.some((k) => text.includes(k));
-    });
-  }
-  return items.filter((i) => i.genres.includes(tab));
+// 表示中のタブに応じた検索条件（絞り込みはサーバー側で行い、必要な分だけ受け取る）
+function queryFor() {
+  if (tab === "all") return "genre=all";
+  if (tab.startsWith("k:")) return `genre=all&q=${encodeURIComponent(keywords(tab).join(" "))}`;
+  return `genre=${encodeURIComponent(tab)}`;
 }
 
 function renderTabs() {
@@ -62,25 +57,32 @@ function renderTabs() {
 }
 
 let shown = []; // いま画面に出している記事（カード番号と対応）
+let total = 0; // 条件に合う記事の総数
 let dirty = false; // カード展開中に更新が来たら、閉じた後に描画する
-function renderList() {
-  if (document.querySelector(".cell.open")) { dirty = true; return; }
-  dirty = false;
-  const list = filtered();
-  shown = list;
-  $("list").innerHTML = list.length
-    ? list.map((i, n) => `<div class="cell"><a class="card" data-n="${n}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
-        ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
+const cardHtml = (i, n) => `<div class="cell"><a class="card" data-n="${n}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
+        ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
         <h2>${esc(i.title)}</h2>
         <p>${esc(i.summary || "")}</p>
         <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time)}</span></div>
-      </a></div>`).join("")
-    : `<div class="empty">該当する記事がありません</div>`;
+      </a></div>`;
+function renderList() {
+  if (document.querySelector(".cell.open")) { dirty = true; return; }
+  dirty = false;
+  shown = items;
+  $("list").innerHTML = items.length ? items.map(cardHtml).join("") : `<div class="empty">該当する記事がありません</div>`;
   markOverflow();
 }
+// 続きを後ろに足す（既に出しているカードは作り直さない）
+function appendList(newItems) {
+  const start = shown.length;
+  shown = items;
+  const before = $("list").children.length;
+  $("list").insertAdjacentHTML("beforeend", newItems.map((i, k) => cardHtml(i, start + k)).join(""));
+  markOverflow([...$("list").children].slice(before));
+}
 // 概要が2行を超えるカードだけ「展開できる」印を付ける
-function markOverflow() {
-  for (const cell of document.querySelectorAll(".cell")) {
+function markOverflow(cells = document.querySelectorAll(".cell")) {
+  for (const cell of cells) {
     const p = cell.querySelector("p");
     cell.classList.toggle("more", !!p && p.scrollHeight > p.clientHeight + 1);
   }
@@ -119,33 +121,88 @@ $("list").addEventListener("click", (e) => {
   if (item) openReader(item);
 });
 
+const PAGE = 48; // 1回に取得・描画するカード数
+const setStatus = () => { if (updatedAt) $("status").textContent = new Date(updatedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }); };
+let loadedTab = null; // いま一覧に出しているタブ
+let loading = false;
+let reqId = 0;
+
 function render() {
   renderTabs();
-  renderList();
-  if (updatedAt) $("status").textContent = new Date(updatedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+  setStatus();
+  if (tab !== loadedTab) load(); // 設定変更などで表示中のタブが変わったら読み直す
 }
 
-async function load(fresh = false) {
+// 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
+async function load({ fresh = false, poll = false } = {}) {
+  const id = ++reqId;
   try {
-    const r = await fetch(`${API}/api/news?genre=all${fresh ? "&fresh=1" : ""}`);
+    const r = await fetch(`${API}/api/news?${queryFor()}&limit=${PAGE}&offset=0${fresh ? "&fresh=1" : ""}`);
     const d = await r.json();
+    if (id !== reqId) return; // 途中でタブが変わった等、古い応答は捨てる
     genres = d.genres;
-    items = d.items;
+    const changed = d.updatedAt !== updatedAt || loadedTab !== tab;
     updatedAt = d.updatedAt;
-    render();
+    setStatus();
+    // 自動更新で中身が変わっていない、またはスクロールして読んでいる最中は、描画し直さない
+    if (poll && (!changed || window.scrollY > 300 || document.querySelector(".cell.open") || readerOpen)) { renderTabs(); return; }
+    items = d.items;
+    total = d.total;
+    loadedTab = tab;
+    renderTabs();
+    renderList();
+    watchMore();
   } catch {
     $("status").textContent = "再試行中";
   }
 }
 
+// 続きの読み込み（下までスクロールしたら次の48件）
+async function loadMore() {
+  if (loading || items.length >= total) return;
+  loading = true;
+  const id = reqId;
+  try {
+    const r = await fetch(`${API}/api/news?${queryFor()}&limit=${PAGE}&offset=${items.length}`);
+    const d = await r.json();
+    if (id !== reqId) return;
+    const add = d.items.filter((i) => !items.some((x) => x.link === i.link)); // 更新で記事がずれても重複させない
+    items = items.concat(add);
+    total = d.total;
+    appendList(add);
+  } catch {} finally {
+    loading = false;
+    watchMore();
+  }
+}
+const sentinel = document.createElement("div");
+sentinel.id = "sentinel";
+$("list").after(sentinel);
+const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { rootMargin: "800px" });
+io.observe(sentinel);
+// IntersectionObserver が使えない環境向けの保険（スクロール位置でも判定）
+let sc;
+window.addEventListener("scroll", () => {
+  if (sc) return;
+  sc = setTimeout(() => {
+    sc = null;
+    if (sentinel.getBoundingClientRect().top < innerHeight + 800) loadMore();
+  }, 150);
+}, { passive: true });
+function watchMore() { // 画面が空いたままなら続きを読む
+  io.unobserve(sentinel);
+  io.observe(sentinel);
+}
+
 $("tabs").addEventListener("click", (e) => {
   if (e.target.dataset.add) return openSettings();
   const g = e.target.dataset.g;
-  if (!g) return;
+  if (!g || g === tab) return;
   tab = g;
   store.set("newshub.tab", g);
-  render();
+  renderTabs();
   window.scrollTo({ top: 0 });
+  load();
 });
 
 // ---- 更新ボタン ----
@@ -154,7 +211,7 @@ $("refresh").addEventListener("click", async () => {
   if (b.classList.contains("busy")) return;
   b.classList.add("busy");
   window.scrollTo({ top: 0, behavior: "smooth" });
-  await load(true);
+  await load({ fresh: true });
   b.classList.remove("busy");
 });
 
@@ -246,8 +303,8 @@ $("cancelBtn").addEventListener("click", () => {
 $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });
 
 load();
-setInterval(() => load(), POLL_MS);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+setInterval(() => load({ poll: true }), POLL_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load({ poll: true }); });
 
 // ---- 記事の詳細（戻る / 原文を読む）----
 let readerOpen = false;
