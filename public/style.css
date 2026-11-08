@@ -117,3 +117,9 @@ body.noscroll { overflow: hidden; }
 #tabList input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
 #tabList li.off label { text-decoration: line-through; text-decoration-color: rgba(128, 128, 128, .5); }
 #tabList li button { background: transparent; border-color: transparent; color: inherit; }
+
+/* ジャンル行: 幅を狭く、行全体をドラッグ */
+#tabList { max-width: 240px; }
+#tabList li { cursor: grab; touch-action: none; user-select: none; padding: 0 8px; }
+#tabList li.drag { cursor: grabbing; opacity: .9; }
+#tabList label { cursor: inherit; }

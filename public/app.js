@@ -181,7 +181,6 @@ $("refresh").addEventListener("click", async () => {
 function renderSettings() {
   $("tabList").innerHTML = allTabs()
     .map((t) => `<li data-id="${esc(t.id)}" class="${prefs.hidden.includes(t.id) ? "off" : "on"}">
-        <span class="grip" title="ドラッグして並び替え" aria-label="ドラッグして並び替え">⠿</span>
         <label title="クリックで表示/非表示"><input type="checkbox" ${prefs.hidden.includes(t.id) ? "" : "checked"} data-act="vis"> ${esc(t.label)}${t.custom ? ` <small class="kw">${esc(prefs.custom.find((c) => c.id === t.id).kw)}</small>` : ""}</label>
         <button data-act="del" aria-label="削除">✕</button>
       </li>`)
@@ -199,18 +198,23 @@ $("tabList").addEventListener("click", (e) => {
   savePrefs(); renderSettings(); render();
 });
 
-// ドラッグで並び替え（マウス・タッチ両対応）
-let dragLi = null;
+// ドラッグで並び替え（行のどこでも押したまま動かせる。マウス・タッチ両対応）
+let dragLi = null, pend = null, moved = false;
 $("tabList").addEventListener("pointerdown", (e) => {
-  const grip = e.target.closest(".grip");
-  if (!grip) return;
-  dragLi = grip.closest("li");
-  dragLi.classList.add("drag");
-  $("tabList").setPointerCapture(e.pointerId);
-  e.preventDefault();
+  if (e.button > 0 || e.target.closest("button")) return;
+  const li = e.target.closest("li");
+  if (!li) return;
+  pend = { li, y: e.clientY, id: e.pointerId };
+  moved = false;
 });
 $("tabList").addEventListener("pointermove", (e) => {
+  if (pend && !dragLi && Math.abs(e.clientY - pend.y) > 5) {
+    dragLi = pend.li;
+    dragLi.classList.add("drag");
+    $("tabList").setPointerCapture(pend.id);
+  }
   if (!dragLi) return;
+  moved = true;
   const others = [...$("tabList").children].filter((li) => li !== dragLi);
   const next = others.find((li) => {
     const r = li.getBoundingClientRect();
@@ -219,6 +223,7 @@ $("tabList").addEventListener("pointermove", (e) => {
   $("tabList").insertBefore(dragLi, next || null);
 });
 const endDrag = () => {
+  pend = null;
   if (!dragLi) return;
   dragLi.classList.remove("drag");
   dragLi = null;
@@ -226,6 +231,8 @@ const endDrag = () => {
 };
 $("tabList").addEventListener("pointerup", endDrag);
 $("tabList").addEventListener("pointercancel", endDrag);
+// ドラッグ直後のクリックでON/OFFが切り替わらないようにする
+$("tabList").addEventListener("click", (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
 $("tabList").addEventListener("change", (e) => {
   if (e.target.dataset.act !== "vis") return;
   const li = e.target.closest("li");
