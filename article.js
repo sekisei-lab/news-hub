@@ -7,6 +7,7 @@ const NOISE = /無断転載|著作権|Copyright|©|cookie|Cookie|会員登録|�
 
 module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
   const cache = new Map(); // url -> { at, data }
+  const VER = 3; // 抽出ロジックを変えたら上げる（古いキャッシュを使わない）
   const TTL = 6 * 60 * 60 * 1000;
 
   const meta = (html, re) => {
@@ -68,7 +69,7 @@ module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
 
   async function extract(url) {
     const hit = cache.get(url);
-    if (hit && Date.now() - hit.at < TTL) return hit.data;
+    if (hit && hit.v === VER && Date.now() - hit.at < TTL) return hit.data;
     const data = { paragraphs: [], image: "", description: "", pages: 0 };
     try {
       let cur = url;
@@ -96,7 +97,7 @@ module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
       // 取得失敗時は取れた分だけ返す（画面側で要約を表示する）
     }
     if (cache.size > 500) cache.delete(cache.keys().next().value);
-    cache.set(url, { at: Date.now(), data });
+    cache.set(url, { at: Date.now(), v: VER, data });
     return data;
   }
   return extract;
