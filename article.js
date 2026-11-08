@@ -7,7 +7,7 @@ const NOISE = /無断転載|著作権|Copyright|©|cookie|Cookie|会員登録|�
 
 module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
   const cache = new Map(); // url -> { at, data }
-  const VER = 3; // 抽出ロジックを変えたら上げる（古いキャッシュを使わない）
+  const VER = 4; // 抽出ロジックを変えたら上げる（古いキャッシュを使わない）
   const TTL = 6 * 60 * 60 * 1000;
 
   const meta = (html, re) => {
@@ -16,6 +16,34 @@ module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
       new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["'](?:${re})["']`, "i").exec(html);
     return m ? clean(m[1]) : "";
   };
+
+  // <p> ではなく <div> + <br> で本文を書くサイト向け。本文用のクラス名を持つ div を探し、<br> で段落に分ける。
+  const BODY_CLASS = /class=["'][^"']*(cXenseParse|player-text|article-text|article-body|article_body|entry-body|post-body|story-body|news-body|honbun)/i;
+  function divBodies(h) {
+    const out = [];
+    const re = /<div[^>]*>/gi;
+    let m;
+    while ((m = re.exec(h))) {
+      if (!BODY_CLASS.test(m[0])) continue;
+      // 対応する </div> までを取り出す（入れ子を数える）
+      let depth = 1, pos = re.lastIndex;
+      const tag = /<(\/?)div[\s>]/gi;
+      tag.lastIndex = pos;
+      let t;
+      while ((t = tag.exec(h))) {
+        depth += t[1] ? -1 : 1;
+        if (!depth) break;
+      }
+      const inner = h.slice(pos, t ? t.index : pos);
+      if (/<p[\s>]/i.test(inner)) continue; // <p> で書かれているなら通常の抽出に任せる
+      const text = inner.replace(/<br\s*\/?>/gi, "\n");
+      for (const line of text.split("\n")) {
+        const c = clean(line);
+        if (c.length >= 12) out.push(c);
+      }
+    }
+    return out;
+  }
 
   function paragraphs(html) {
     let h = html
@@ -26,6 +54,7 @@ module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
     if (art && (art[0].match(/<p[\s>]/gi) || []).length >= 2) h = art[0];
     const out = [];
     const seen = new Set();
+    for (const t of divBodies(h)) if (!seen.has(t)) { seen.add(t); out.push(t); }
     for (const m of h.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
       // リンクの中にある段落・見出し/ランキング/関連用のクラスの段落は本文ではない
       const before = h.slice(Math.max(0, m.index - 3000), m.index);
