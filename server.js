@@ -132,6 +132,8 @@ const GENERIC_DESC = /最新の見出しを提供|最新ニュース|ニュー�
 const ogCache = new Map();
 const DEFAULT_IMG = /amd-img\/default\.jpg|no[-_]?image|dummy|placeholder/i; // 汎用のダミー画像は「画像なし」として扱う
 const RETRY_MS = 30 * 60 * 1000; // 取得に失敗した記事は30分後にもう一度試す
+const badImg = new Map(); // link -> 表示できなかった画像URL（次回から使わない）
+const retryAt = new Map(); // link -> 最後に取り直した時刻（連続リクエスト防止）
 const ogDone = (url) => { const v = ogCache.get(url); return !!v && (v.image || v.desc || Date.now() - v.at < RETRY_MS); };
 async function fetchOg(url) {
   if (ogDone(url)) return ogCache.get(url);
@@ -270,7 +272,7 @@ async function refresh() {
             title: i.title,
             link: i.link.replace(/^http:\/\/(www3\.nhk)/, "https://$1"),
             summary: trimSummary(needsDesc(i) ? og.desc || "" : i.desc, i.title),
-            image: [i.image, og.image].find((u) => u && !DEFAULT_IMG.test(u)) || "",
+            image: [i.image, og.image].find((u) => u && !DEFAULT_IMG.test(u) && u !== badImg.get(i.link)) || "",
             source: i.source,
             genre: i.genre,
             time: i.time,
@@ -359,6 +361,22 @@ const server = http.createServer(async (req, res) => {
     const data = await extractArticle(link);
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=600" });
     return res.end(JSON.stringify(data));
+  }
+  if (url.pathname === "/api/image-retry") {
+    // 画像が表示できなかったとき、記事ページから画像を取り直す（一覧にある記事のみ・10分に1回まで）
+    const link = url.searchParams.get("link") || "";
+    const bad = url.searchParams.get("bad") || "";
+    const known = Object.values(store.items).some((list) => list.some((i) => i.link === link));
+    const out = { "Content-Type": "application/json", "Cache-Control": "no-store" };
+    if (!known || Date.now() - (retryAt.get(link) || 0) < 10 * 60 * 1000) { res.writeHead(200, out); return res.end('{"image":""}'); }
+    retryAt.set(link, Date.now());
+    if (retryAt.size > 2000) retryAt.delete(retryAt.keys().next().value);
+    if (bad) badImg.set(link, bad);
+    ogCache.delete(link);
+    const v = await fetchOg(link);
+    const image = v.image && v.image !== bad ? v.image : "";
+    res.writeHead(200, out);
+    return res.end(JSON.stringify({ image }));
   }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" });
