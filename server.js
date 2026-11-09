@@ -288,14 +288,18 @@ async function refresh() {
     stage1Done();
     saveSnapshot();
     // 概要・画像が足りない記事だけ記事ページから補完（初回表示を待たせないよう後追い）
-    const todo = Object.values(lists).flat()
-      .filter((i) => (needsDesc(i) || !i.image || DEFAULT_IMG.test(i.image)) && !ogDone(i.link))
-      .sort((a, b) => b.time - a.time)
-      .slice(0, ENRICH_MAX);
-    await pool(todo, 8, (i) => fetchOg(i.link));
-    if (todo.length) {
+    // 残りが無くなるまで続けて補完する（再起動直後でも数十秒で画像が揃うように、次の周期を待たない）。
+    // 新しい記事から順に取り、1回ごとに画面へ反映する。暴走防止で最大8ラウンド。
+    for (let round = 0; round < 8; round++) {
+      const todo = Object.values(lists).flat()
+        .filter((i) => (needsDesc(i) || !i.image || DEFAULT_IMG.test(i.image)) && !ogDone(i.link))
+        .sort((a, b) => b.time - a.time)
+        .slice(0, ENRICH_MAX);
+      if (!todo.length) break;
+      await pool(todo, 8, (i) => fetchOg(i.link));
       store.items = build();
-      console.log(new Date().toISOString(), "enriched", todo.length);
+      store.updatedAt = Date.now(); // 画面側の自動更新が気づけるように
+      console.log(new Date().toISOString(), "enriched", todo.length, "round", round + 1);
     }
   })().finally(() => {
     stage1Done();
