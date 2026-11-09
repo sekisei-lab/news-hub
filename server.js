@@ -130,9 +130,12 @@ const GENERIC_DESC = /最新の見出しを提供|最新ニュース|ニュー�
 
 // 概要が空のとき記事ページの og:description を取得（URLごとにキャッシュ）
 const ogCache = new Map();
+const DEFAULT_IMG = /amd-img\/default\.jpg|no[-_]?image|dummy|placeholder/i; // 汎用のダミー画像は「画像なし」として扱う
+const RETRY_MS = 30 * 60 * 1000; // 取得に失敗した記事は30分後にもう一度試す
+const ogDone = (url) => { const v = ogCache.get(url); return !!v && (v.image || v.desc || Date.now() - v.at < RETRY_MS); };
 async function fetchOg(url) {
-  if (ogCache.has(url)) return ogCache.get(url);
-  const v = { desc: "", image: "" };
+  if (ogDone(url)) return ogCache.get(url);
+  const v = { desc: "", image: "", at: Date.now() };
   try {
     const html = (await fetchText(url, 8000)).slice(0, 200000);
     const meta = (re) => {
@@ -142,6 +145,7 @@ async function fetchOg(url) {
     };
     v.desc = meta("og:description|description");
     v.image = absUrl(meta("og:image|twitter:image"), url);
+    if (DEFAULT_IMG.test(v.image)) v.image = "";
   } catch {}
   if (ogCache.size > 3000) ogCache.delete(ogCache.keys().next().value);
   ogCache.set(url, v);
@@ -186,9 +190,11 @@ const archive = new Map(); // "genre|link" -> 記事（期間内のものを蓄�
 // DATA_DIR をディスク（Render の有料プランなど）に向けると再デプロイ後も残る。無料プランでは再起動で消える。
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const SNAP = path.join(DATA_DIR, "archive.json");
+const OGSNAP = path.join(DATA_DIR, "og.json");
 function loadSnapshot() {
   try {
     for (const [k, v] of JSON.parse(fs.readFileSync(SNAP, "utf8"))) archive.set(k, v);
+    for (const [k, v] of JSON.parse(fs.readFileSync(OGSNAP, "utf8"))) ogCache.set(k, v);
     console.log("snapshot loaded:", archive.size);
   } catch {}
 }
@@ -202,6 +208,7 @@ function saveSnapshot() {
       fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(SNAP + ".tmp", JSON.stringify([...archive]));
       fs.renameSync(SNAP + ".tmp", SNAP);
+      fs.writeFileSync(OGSNAP, JSON.stringify([...ogCache].filter(([, v]) => v.image || v.desc)));
     } catch {}
   }, 1000);
 }
@@ -211,7 +218,7 @@ const JST = 9 * 60 * 60 * 1000;
 const jstMidnight = (t) => Math.floor((t + JST) / DAY_MS) * DAY_MS - JST; // その日の日本時間0:00
 let refreshing = null;
 let stage1 = Promise.resolve();
-const ENRICH_MAX = 120; // 1回の更新で記事ページを取りに行く上限（残りは次回以降に少しずつ）
+const ENRICH_MAX = 400; // 1回の更新で記事ページを取りに行く上限（残りは次回以降に少しずつ）
 const FORCE_MIN_MS = 30 * 1000; // 手動更新の最短間隔（連打でフィード元に負荷をかけない）
 
 async function refresh() {
@@ -263,7 +270,7 @@ async function refresh() {
             title: i.title,
             link: i.link.replace(/^http:\/\/(www3\.nhk)/, "https://$1"),
             summary: trimSummary(needsDesc(i) ? og.desc || "" : i.desc, i.title),
-            image: i.image || og.image || "",
+            image: [i.image, og.image].find((u) => u && !DEFAULT_IMG.test(u)) || "",
             source: i.source,
             genre: i.genre,
             time: i.time,
@@ -280,10 +287,10 @@ async function refresh() {
     saveSnapshot();
     // 概要・画像が足りない記事だけ記事ページから補完（初回表示を待たせないよう後追い）
     const todo = Object.values(lists).flat()
-      .filter((i) => (needsDesc(i) || !i.image) && !ogCache.has(i.link))
+      .filter((i) => (needsDesc(i) || !i.image || DEFAULT_IMG.test(i.image)) && !ogDone(i.link))
       .sort((a, b) => b.time - a.time)
       .slice(0, ENRICH_MAX);
-    await pool(todo, 4, (i) => fetchOg(i.link));
+    await pool(todo, 8, (i) => fetchOg(i.link));
     if (todo.length) {
       store.items = build();
       console.log(new Date().toISOString(), "enriched", todo.length);
