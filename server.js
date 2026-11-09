@@ -36,14 +36,30 @@ const { FEEDS } = require("./feeds");
 const makeExtractor = require("./article");
 
 // ---------- 取得・パース ----------
-async function fetchText(url, timeout = 15000) {
+async function fetchText(url, timeout = 15000, maxBytes = 0) {
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "*/*" },
     redirect: "follow",
     signal: AbortSignal.timeout(timeout),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const buf = new Uint8Array(await res.arrayBuffer());
+  let buf;
+  if (maxBytes && res.body) {
+    // 先頭だけ読んで接続を閉じる（og情報は <head> にあるので、ページ全体を取り込まずメモリを節約）
+    const reader = res.body.getReader();
+    const chunks = [];
+    let got = 0;
+    while (got < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      got += value.length;
+    }
+    reader.cancel().catch(() => {});
+    buf = new Uint8Array(got);
+    let off = 0;
+    for (const c of chunks) { buf.set(c, off); off += c.length; }
+  } else buf = new Uint8Array(await res.arrayBuffer());
   let charset = /charset=([\w-]+)/i.exec(res.headers.get("content-type") || "")?.[1];
   if (!charset) {
     const head = new TextDecoder("latin1").decode(buf.slice(0, 1024));
@@ -139,7 +155,7 @@ async function fetchOg(url) {
   if (ogDone(url)) return ogCache.get(url);
   const v = { desc: "", image: "", at: Date.now() };
   try {
-    const html = (await fetchText(url, 8000)).slice(0, 200000);
+    const html = await fetchText(url, 8000, 150000);
     const meta = (re) => {
       const m = new RegExp(`<meta[^>]+(?:property|name)=["'](?:${re})["'][^>]*content=["']([^"']*)["']`, "i").exec(html) ||
         new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["'](?:${re})["']`, "i").exec(html);
@@ -296,7 +312,7 @@ async function refresh() {
         .sort((a, b) => b.time - a.time)
         .slice(0, ENRICH_MAX);
       if (!todo.length) break;
-      await pool(todo, 8, (i) => fetchOg(i.link));
+      await pool(todo, 5, (i) => fetchOg(i.link));
       store.items = build();
       store.updatedAt = Date.now(); // 画面側の自動更新が気づけるように
       console.log(new Date().toISOString(), "enriched", todo.length, "round", round + 1);

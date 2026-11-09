@@ -4,6 +4,6 @@ services:
     runtime: node
     plan: free
     buildCommand: "true"
-    startCommand: node server.js
+    startCommand: node --max-old-space-size=300 server.js
     healthCheckPath: /healthz
     autoDeployTrigger: commit
