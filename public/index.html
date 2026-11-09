@@ -34,19 +34,25 @@
 
 <dialog id="settings">
   <div class="dlg">
-    <div class="main">
+    <div class="dh">
       <h3>ジャンル設定</h3>
-      <p class="note">色のついたジャンルが表示中です。クリックで表示/非表示、押したままドラッグして並び替え。設定はこのブラウザにだけ保存され、他の人には影響しません。</p>
+      <p class="note">色のついたジャンルが表示中です。クリックで表示/非表示、ドラッグで並び替えできます。設定はこのブラウザだけに保存されます。</p>
+    </div>
+    <div class="db">
       <ul id="tabList"></ul>
       <form id="addForm">
-        <input id="kwInput" placeholder="キーワードタブを追加（例: 半導体 TSMC）" required>
-        <button type="submit">検索</button>
+        <label for="kwInput" class="fl">キーワードでタブを作る</label>
+        <div class="row">
+          <input id="kwInput" placeholder="例: 半導体 TSMC（スペース区切りで複数可）" required>
+          <button type="submit" class="sec">検索</button>
+        </div>
       </form>
     </div>
-    <div class="side">
-      <button id="closeBtn" type="button">確定</button>
+    <div class="df">
+      <button id="resetBtn" type="button" class="link">初期化</button>
+      <span class="sp"></span>
       <button id="cancelBtn" type="button" class="ghost">キャンセル</button>
-      <button id="resetBtn" type="button" class="ghost">初期化</button>
+      <button id="closeBtn" type="button" class="pri">確定</button>
     </div>
   </div>
 </dialog>

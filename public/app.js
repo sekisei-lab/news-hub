@@ -231,7 +231,7 @@ $("refresh").addEventListener("click", async () => {
 function renderSettings() {
   $("tabList").innerHTML = allTabs()
     .map((t) => `<li data-id="${esc(t.id)}" class="${prefs.hidden.includes(t.id) ? "off" : "on"}">
-        <label title="クリックで表示/非表示"><input type="checkbox" ${prefs.hidden.includes(t.id) ? "" : "checked"} data-act="vis"> ${esc(t.label)}${t.custom ? ` <small class="kw">${esc(prefs.custom.find((c) => c.id === t.id).kw)}</small>` : ""}</label>
+        <label title="クリックで表示/非表示"><input type="checkbox" ${prefs.hidden.includes(t.id) ? "" : "checked"} data-act="vis"> ${esc(t.label)}${t.custom && prefs.custom.find((c) => c.id === t.id).kw !== t.label ? ` <small class="kw">${esc(prefs.custom.find((c) => c.id === t.id).kw)}</small>` : ""}</label>
         <button data-act="del" aria-label="削除">✕</button>
       </li>`)
     .join("");
@@ -268,7 +268,8 @@ $("tabList").addEventListener("pointermove", (e) => {
   const others = [...$("tabList").children].filter((li) => li !== dragLi);
   const next = others.find((li) => {
     const r = li.getBoundingClientRect();
-    return e.clientY < r.top + r.height / 2;
+    // 2列の並びなので、行を上から・同じ行は左から数えて、ポインタより後ろの最初の項目の前に入れる
+    return e.clientY < r.top || (e.clientY <= r.bottom && e.clientX < r.left + r.width / 2);
   });
   $("tabList").insertBefore(dragLi, next || null);
 });

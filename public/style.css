@@ -136,3 +136,29 @@ body.noscroll { overflow: hidden; }
 .thumb:not(.ld) { aspect-ratio: 16 / 9; }
 .card.read h2 { color: var(--sub); font-weight: 500; }
 .card.read .thumb { opacity: .6; }
+
+/* ===== ジャンル設定: 上=見出し / 中=スクロール本体 / 下=操作ボタン（確定は右下） ===== */
+dialog#settings { width: min(520px, 94vw); max-height: 88vh; padding: 0; overflow: hidden; }
+dialog#settings[open] { display: flex; flex-direction: column; }
+.dlg { display: flex; flex-direction: column; min-height: 0; max-height: 88vh; gap: 0; }
+.dh { padding: 18px 20px 12px; border-bottom: 1px solid var(--line); }
+.dh h3 { margin: 0 0 4px; font-size: 17px; }
+.dh .note { margin: 0; line-height: 1.5; }
+.db { padding: 14px 20px; overflow-y: auto; min-height: 0; flex: 1 1 auto; scrollbar-width: thin; }
+#tabList { max-width: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#tabList li { padding: 0 4px 0 12px; min-height: 40px; border-radius: 10px; }
+#tabList label { padding: 9px 0; }
+#tabList li button { padding: 4px 8px; opacity: .6; }
+#tabList li button:hover { opacity: 1; }
+#addForm { display: block; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+#addForm .fl { display: block; font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+#addForm .row { display: flex; gap: 8px; }
+#addForm .row input { flex: 1; min-width: 0; }
+dialog#settings #addForm button.sec { background: var(--card); color: var(--accent); border: 1px solid var(--accent); padding: 8px 14px; }
+.df { display: flex; align-items: center; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid var(--line); background: var(--card); }
+.df .sp { flex: 1; }
+dialog#settings .df button { padding: 10px 20px; font-size: 14px; border-radius: 8px; }
+dialog#settings .df .pri { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; min-width: 96px; }
+dialog#settings .df .ghost { border: 1px solid var(--line); background: var(--card); color: var(--text); }
+dialog#settings .df .link { background: none; border: 0; color: var(--sub); padding: 10px 4px; font-size: 13px; text-decoration: underline; }
+@media (max-width: 360px) { #tabList { grid-template-columns: 1fr; } }
