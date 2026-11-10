@@ -124,11 +124,14 @@ window.addEventListener("resize", () => {
   rz = setTimeout(() => { if (items.length && calcCols() !== colCount) renderList(); }, 200);
 });
 // カードをクリック/タップすると、新しいタブではなくサイト内の詳細表示を開く（Ctrl/中クリックは従来どおり原文へ）
+const NO_READER = new Set(["Investing.com", "WWD JAPAN"]);
 $("list").addEventListener("click", (e) => {
   const card = e.target.closest?.(".card");
   if (!card || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
-  e.preventDefault();
   const item = shown[Number(card.dataset.n)];
+  // 本文を取得できないサイト（ボット対策で拒否される）は、空の詳細画面を挟まず原文を直接開く
+  if (item && NO_READER.has(item.source)) { markRead(item.link); card.classList.add("read"); return; }
+  e.preventDefault();
   if (item) { markRead(item.link); card.classList.add("read"); openReader(item); }
 });
 
