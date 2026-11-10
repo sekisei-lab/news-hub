@@ -150,7 +150,8 @@ function render() {
 // ---- 市況（金融タブの上に表示）----
 async function loadMarkets() {
   const box = $("markets");
-  if (tab !== "finance") { box.hidden = true; return; }
+  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; } // タブが変わったら前の内容を消す
+  if (tab !== "finance") { if (tab !== "national") box.hidden = true; return; }
   try {
     const d = await (await fetch(`${API}/api/markets`)).json();
     if (tab !== "finance" || !d.items?.length) { box.hidden = true; return; }
@@ -168,10 +169,32 @@ async function loadMarkets() {
 // 金融タブを見ていて、画面が表示されている間だけ、3秒ごとに更新する
 setInterval(() => { if (tab === "finance" && !document.hidden) loadMarkets(); }, 3000);
 
+// ---- 国内タブの天気ヘッダー（東京の天気・気温、台風、寒波・熱波）----
+async function loadWeather() {
+  const box = $("markets");
+  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; } // タブが変わったら前の内容を消す
+  if (tab !== "national") return;
+  try {
+    const w = await (await fetch(`${API}/api/weather`)).json();
+    if (tab !== "national" || !(w.weather || w.temp != null)) { box.hidden = true; return; }
+    const temp = w.temp != null ? `${w.temp.toFixed(1)}℃` : "";
+    const range = w.max != null && !Number.isNaN(w.max) ? ` (最高${w.max}℃/最低${w.min}℃)` : "";
+    const ty = w.typhoons?.length ? w.typhoons.map((t) => `${t.no}号${t.name ? " " + esc(t.name) : ""}`).join("、") : "なし";
+    const warn = [w.heat && `<span class="chg up">${esc(w.heat)}</span>`, w.cold && `<span class="chg down">${esc(w.cold)}</span>`].filter(Boolean).join(" ") || "なし";
+    box.innerHTML =
+      `<span class="mk"><span class="mn">東京</span><span class="mp">${esc(w.weather || "")}</span><span>${temp}${range}</span></span>` +
+      `<span class="mk"><span class="mn">台風</span><span class="mp">${ty}</span></span>` +
+      `<span class="mk"><span class="mn">寒波・熱波</span><span class="mp">${warn}</span></span>`;
+    box.hidden = false;
+  } catch { box.hidden = true; }
+}
+setInterval(() => { if (tab === "national" && !document.hidden) loadWeather(); }, 60000);
+
 // 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
 async function load({ fresh = false, poll = false } = {}) {
   const id = ++reqId;
   loadMarkets();
+  loadWeather();
   try {
     const r = await fetch(`${API}/api/news?${queryFor()}&limit=${PAGE}&offset=0${fresh ? "&fresh=1" : ""}`);
     const d = await r.json();

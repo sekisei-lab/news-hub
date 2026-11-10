@@ -405,6 +405,74 @@ async function getMarkets() {
   return marketsCache.data;
 }
 
+// ---------- 国内タブの天気ヘッダー（東京の天気・気温・台風・寒波/熱波）----------
+// 気象庁の公開データを使う。5分キャッシュ。取れない項目は出さない。
+let weatherCache = { at: 0, data: null };
+let weatherBusy = null;
+const jmaJson = async (u) => {
+  const r = await fetch(u, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+};
+async function buildWeather() {
+  const out = { weather: "", temp: null, max: null, min: null, typhoons: [], heat: "", cold: "" };
+  const tasks = [];
+  tasks.push((async () => {
+    const f = await jmaJson("https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json");
+    const w = f[0].timeSeries[0].areas[0].weathers[0] || "";
+    out.weather = w.replace(/　/g, " ").replace(/ から /g, "→").replace(/ 後 /g, "→").replace(/ ところにより /g, "、所により").trim();
+    const temps = f[0].timeSeries[2].areas[0].temps;
+    out.max = Number(temps[0]);
+    out.min = Number(temps[1]);
+    const wk = f[1].timeSeries[1].areas[0];
+    const days = f[1].timeSeries[0].timeDefines;
+    const md = (i) => { const d = new Date(days[i]); return `${d.getMonth() + 1}/${d.getDate()}`; };
+    // 寒波・熱波の目安: 向こう1週間の予報で、最高35℃以上(猛暑日)/最低0℃以下(冬日)
+    const hot = [], cold = [];
+    wk.tempsMax.forEach((v, i) => { if (v !== "" && Number(v) >= 35) hot.push(md(i)); });
+    wk.tempsMin.forEach((v, i) => { if (v !== "" && Number(v) <= 0) cold.push(md(i)); });
+    if (Number(temps[0]) >= 35) hot.unshift("今日");
+    if (Number(temps[1]) <= 0) cold.unshift("今日");
+    out.heat = hot.length ? `猛暑日予報 ${hot[0]}` : "";
+    out.cold = cold.length ? `氷点下予報 ${cold[0]}` : "";
+  })());
+  tasks.push((async () => {
+    const lt = (await (await fetch("https://www.jma.go.jp/bosai/amedas/data/latest_time.txt", { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) })).text()).trim();
+    const d = new Date(lt);
+    const p2 = (n) => String(n).padStart(2, "0");
+    // AMeDAS の時刻は日本時間。サーバーのタイムゾーンに左右されないよう文字列から作る
+    const key = lt.replace(/[-:T]/g, "").slice(0, 12) + "00";
+    const m = await jmaJson(`https://www.jma.go.jp/bosai/amedas/data/map/${key}.json`);
+    const t = m["44132"]?.temp?.[0];
+    if (Number.isFinite(t)) out.temp = t;
+    void d; void p2;
+  })());
+  tasks.push((async () => {
+    const list = await jmaJson("https://www.jma.go.jp/bosai/typhoon/data/targetTc.json");
+    for (const t of list.filter((x) => /^\d{4}$/.test(x.typhoonNumber || "")).slice(0, 3)) {
+      let name = "";
+      try {
+        const sp = await jmaJson(`https://www.jma.go.jp/bosai/typhoon/data/${t.tropicalCyclone}/specifications.json`);
+        name = sp[0]?.name?.jp || "";
+      } catch {}
+      out.typhoons.push({ no: Number(t.typhoonNumber.slice(2)), name });
+    }
+  })());
+  await Promise.allSettled(tasks);
+  return out;
+}
+async function getWeather() {
+  if (weatherCache.data && Date.now() - weatherCache.at < 5 * 60 * 1000) return weatherCache.data;
+  if (!weatherBusy) {
+    weatherBusy = buildWeather()
+      .then((d) => { weatherCache = { at: Date.now(), data: d }; })
+      .catch(() => {})
+      .finally(() => { weatherBusy = null; });
+  }
+  await weatherBusy;
+  return weatherCache.data;
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (url.pathname === "/api/news") {
@@ -463,6 +531,11 @@ const server = http.createServer(async (req, res) => {
     const data = await getMarkets().catch(() => []);
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" });
     return res.end(JSON.stringify({ items: data }));
+  }
+  if (url.pathname === "/api/weather") {
+    const data = await getWeather().catch(() => null);
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
+    return res.end(JSON.stringify(data || {}));
   }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" });
