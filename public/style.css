@@ -188,3 +188,16 @@ dialog#settings .df .link { background: none; border: 0; color: var(--sub); padd
 .hotbar .hd button { width: 8px; height: 8px; padding: 0; border-radius: 50%; border: 0; background: var(--line); cursor: pointer; }
 .hotbar .hd button.on { background: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .hotbar .ht.fade { animation: none; } }
+
+/* 注目ニュース: 黒い帯を横に流す（上書き） */
+.hotbar { max-width: none; margin: 0; padding: 6px 16px; gap: 12px; background: #000; color: #fff; font-size: 13px; overflow: hidden; }
+.hotbar .hl { background: #e53935; }
+.hview { flex: 1 1 auto; min-width: 0; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
+.htrack { display: inline-flex; align-items: center; white-space: nowrap; animation: hmarq var(--dur, 30s) linear infinite; will-change: transform; }
+.htrack:hover { animation-play-state: paused; }
+@keyframes hmarq { to { transform: translateX(-50%); } }
+.hotbar .hi { flex: none; background: none; border: 0; color: #fff; font: inherit; cursor: pointer; padding: 2px 0; }
+.hotbar .hi:hover { text-decoration: underline; }
+.hotbar .hi .hr { color: #ffb300; font-size: 11px; margin-right: 8px; }
+.hotbar .hs { flex: none; color: #777; margin: 0 28px; font-size: 9px; }
+/* 流れる表示は仕様なので、OSの「動きを減らす」設定でも止めない。マウスを乗せると止まる */

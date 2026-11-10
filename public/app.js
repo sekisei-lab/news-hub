@@ -190,9 +190,8 @@ async function loadWeather() {
 }
 setInterval(() => { if (tab === "national" && !document.hidden) loadWeather(); }, 60000);
 
-// ---- 注目ニュース3本（ヘッダーの2行目。自動で切り替わり、点を押すと手動で切り替えられる）----
-let hotItems = [], hotIdx = 0, hotFor = "", hotAt = 0, hotPaused = false;
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// ---- 注目ニュース3本（ヘッダーの2行目。黒い帯を横に流れる。マウスを乗せると止まる）----
+let hotItems = [], hotFor = "", hotAt = 0;
 async function loadHot() {
   const box = $("hot");
   if (tab.startsWith("k:")) { hotItems = []; box.hidden = true; hotFor = tab; return; }
@@ -203,32 +202,26 @@ async function loadHot() {
     const d = await (await fetch(`${API}/api/hot?genre=${encodeURIComponent(tab)}`)).json();
     if (hotFor !== tab) return;
     hotItems = d.items || [];
-    hotIdx = 0;
     if (!hotItems.length) hotAt = 0; // まだ用意できていないときは、次の更新でまた取りに行く
-    renderHot(false);
+    renderHot();
   } catch { hotAt = 0; }
 }
-function renderHot(animate = true) {
+function renderHot() {
   const box = $("hot");
   if (!hotItems.length) { box.hidden = true; return; }
-  const it = hotItems[hotIdx];
-  box.innerHTML =
-    `<span class="hl">注目</span><button type="button" class="ht${animate ? " fade" : ""}" title="${esc(it.title)}"><span class="hr">${esc(it.reason)}</span>${esc(it.title)}</button>` +
-    `<span class="hd">${hotItems.map((_, i) => `<button type="button" data-i="${i}" class="${i === hotIdx ? "on" : ""}" aria-label="${i + 1}本目"></button>`).join("")}</span>`;
+  const one = hotItems.map((it, i) => `<button type="button" class="hi" data-i="${i}"><span class="hr">${esc(it.reason)}</span>${esc(it.title)}</button>`).join('<span class="hs">◆</span>');
+  // 同じ並びを2回つなげて、端が切れ目なくループするようにする
+  box.innerHTML = `<span class="hl">注目</span><div class="hview"><div class="htrack">${one}<span class="hs">◆</span>${one}<span class="hs">◆</span></div></div>`;
   box.hidden = false;
+  const track = box.querySelector(".htrack");
+  requestAnimationFrame(() => track.style.setProperty("--dur", `${Math.max(20, Math.round(track.scrollWidth / 2 / 55))}s`)); // 速さは毎秒約55px
 }
 $("hot").addEventListener("click", (e) => {
-  const dot = e.target.closest("[data-i]");
-  if (dot) { hotIdx = Number(dot.dataset.i); renderHot(); return; }
-  if (e.target.closest(".ht")) { const it = hotItems[hotIdx]; if (it) { markRead(it.link); openReader(it); } }
+  const b = e.target.closest(".hi");
+  if (!b) return;
+  const it = hotItems[Number(b.dataset.i)];
+  if (it) { markRead(it.link); openReader(it); }
 });
-$("hot").addEventListener("mouseenter", () => { hotPaused = true; });
-$("hot").addEventListener("mouseleave", () => { hotPaused = false; });
-setInterval(() => {
-  if (hotPaused || document.hidden || hotItems.length < 2 || readerOpen) return;
-  hotIdx = (hotIdx + 1) % hotItems.length;
-  renderHot(!reduceMotion); // 動きを減らす設定の人には、ふわっとする動きだけ省く（切り替え自体は行う）
-}, 5000);
 
 // 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
 async function load({ fresh = false, poll = false } = {}) {
