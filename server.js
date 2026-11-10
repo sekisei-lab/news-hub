@@ -281,7 +281,7 @@ async function refresh() {
     const lists = Object.fromEntries(Object.keys(GENRES).map((g) => [g, []]));
     for (const [key, i] of archive) {
       const t = i.time || i.firstSeen; // 日付なしの記事は初回取得時刻で判定
-      if (t < cutoff) archive.delete(key);
+      if (t < cutoff || i.source === "Investing.com") archive.delete(key); // Investing.comはカードにせず、専用の帯だけで見せる
       else lists[i.genre].push({ ...i, time: t });
     }
     for (const g in lists) lists[g] = lists[g].sort((a, b) => b.time - a.time).slice(0, MAX_PER_GENRE);
@@ -588,7 +588,7 @@ async function getInsider() {
     const items = (await fetchFeedItems("https://jp.investing.com/rss/news_357.rss"))
       .filter((i) => i.title && i.link)
       .sort((a, b) => (b.time || 0) - (a.time || 0))
-      .slice(0, 12)
+      .slice(0, 20)
       .map((i) => flatItem({ title: i.title, link: i.link, summary: "", image: i.image || "", source: "Investing.com", time: i.time || 0 }));
     insiderCache = { at: Date.now(), items };
   } catch { insiderCache.at = Date.now() - 2.5 * 60 * 1000; } // 失敗時は前回分を出し、30秒後に再挑戦

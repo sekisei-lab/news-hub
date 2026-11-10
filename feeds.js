@@ -46,7 +46,6 @@ const FEEDS = [
   { genre: "economy", source: "日テレNEWS", url: NTV, filter: ECON_KW },
   // 金融
   { genre: "finance", source: "テレ東BIZ", url: TXBIZ },
-  { genre: "finance", source: "Investing.com", url: "https://jp.investing.com/rss/news.rss" },
   { genre: "finance", source: "Yahoo!ニュース", url: Y("business"), filter: FINANCE_KW },
   { genre: "finance", source: "朝日新聞", url: "https://www.asahi.com/rss/asahi/business.rdf", filter: FINANCE_KW },
   { genre: "finance", source: "朝日新聞", url: asahiAll, filter: FINANCE_KW },
