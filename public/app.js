@@ -380,8 +380,8 @@ function runFlow() {
     const dx = e.clientX - lx, dy = e.clientY - ly;
     moved = Math.max(moved, Math.hypot(e.clientX - sx, e.clientY - sy));
     const k = 3.2 / Math.min(box.clientWidth, box.clientHeight); // 画面の大きさに対する回転量
-    flowRot.ay -= dx * k; flowRot.ax -= dy * k; // つかんだ面がついてくる向き
-    flowRot.vy = Math.max(-4, Math.min(4, (-dx * k) / dt)); flowRot.vx = Math.max(-4, Math.min(4, (-dy * k) / dt));
+    flowRot.ay += dx * k; flowRot.ax += dy * k; // マウスを動かした向きに、手前の面がついてくる
+    flowRot.vy = Math.max(-4, Math.min(4, (dx * k) / dt)); flowRot.vx = Math.max(-4, Math.min(4, (dy * k) / dt));
     lx = e.clientX; ly = e.clientY; lt = now;
   });
   const up = () => {
@@ -393,7 +393,7 @@ function runFlow() {
   };
   box.addEventListener("pointerup", up);
   box.addEventListener("pointercancel", () => { flowRot.drag = false; downEl = null; });
-  box.addEventListener("wheel", (e) => { e.preventDefault(); flowRot.ax += e.deltaY * 0.002; }, { passive: false });
+  box.addEventListener("wheel", (e) => { e.preventDefault(); flowRot.ax -= e.deltaY * 0.002; }, { passive: false });
   box.addEventListener("click", (e) => {
     if (e.target.closest(".fclose")) { tab = "all"; store.set("newshub.tab", "all"); renderTabs(); load(); }
   });
