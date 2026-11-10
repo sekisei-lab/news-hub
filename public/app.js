@@ -38,7 +38,7 @@ function ago(t) {
 // ---- タブ（標準ジャンル + 自分用キーワードタブ）----
 function allTabs() {
   const base = Object.entries(genres).filter(([id]) => !prefs.deleted.includes(id)).map(([id, g]) => ({ id, label: g.label }));
-  if (Object.keys(genres).length && !prefs.deleted.includes("flow")) base.push({ id: "flow", label: "🧪ニュース惑星" }); // カードなしの全画面ニュースバー（車ジャンルの内容）
+  if (Object.keys(genres).length && !prefs.deleted.includes("flow")) base.push({ id: "flow", label: "🌐ニュース惑星" }); // カードなしの全画面ニュースバー（車ジャンルの内容）
   const custom = prefs.custom.map((c) => ({ id: c.id, label: c.label, custom: true }));
   const all = [...base, ...custom];
   const byId = new Map(all.map((t) => [t.id, t]));
