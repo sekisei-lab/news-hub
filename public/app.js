@@ -38,7 +38,7 @@ function ago(t) {
 // ---- タブ（標準ジャンル + 自分用キーワードタブ）----
 function allTabs() {
   const base = Object.entries(genres).filter(([id]) => !prefs.deleted.includes(id)).map(([id, g]) => ({ id, label: g.label }));
-  if (Object.keys(genres).length && !prefs.deleted.includes("flow")) base.push({ id: "flow", label: "🌐ニュース惑星" }); // カードなしの全画面ニュースバー（車ジャンルの内容）
+  if (Object.keys(genres).length && !prefs.deleted.includes("flow")) base.push({ id: "flow", label: "ニュース🌐" }); // カードなしの全画面ニュースバー（車ジャンルの内容）
   const custom = prefs.custom.map((c) => ({ id: c.id, label: c.label, custom: true }));
   const all = [...base, ...custom];
   const byId = new Map(all.map((t) => [t.id, t]));
@@ -291,9 +291,10 @@ for (const id of ["hot", "newcar"]) {
 }
 setInterval(() => { if (tab === "car" && !document.hidden) loadCar(); }, 60000);
 
-// ---- ニュースバー: カードなし・ヘッダーなしの全画面。車ジャンルの記事タイトルが球体の表面に並び、ゆっくり回る ----
+// ---- ニュースバー: カードなし・ヘッダーなしの全画面。全ジャンルの記事から無作為に選んだタイトルが球体の表面に並び、ゆっくり回る ----
 // 正面に来たタイトルほど大きく、下へ回ると薄れて消える。ドラッグ（指でも）で好きな向きに回せる
-let flowItems = [], flowAt = 0, flowEls = [], flowPts = [], flowRaf = 0;
+let flowItems = [], flowPool = [], flowAt = 0, flowEls = [], flowPts = [], flowRaf = 0;
+const flowPick = () => { const a = flowPool.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, 44); }; // 全ジャンルから無作為に44件
 const flowRot = { ax: 0.4, ay: 0, vx: 0, vy: 0, drag: false };
 const FLOW_AUTO = 0.11; // ふだんの回転（ラジアン/秒）。約57秒で一周
 async function startFlow() {
@@ -301,16 +302,18 @@ async function startFlow() {
   box.hidden = false;
   document.body.classList.add("flowing");
   if (flowEls.length && Date.now() - flowAt < 3 * 60 * 1000) { runFlow(); return; }
+  if (flowPool.length && Date.now() - flowAt < 3 * 60 * 1000) { flowItems = flowPick(); buildFlow(); runFlow(); return; } // 戻ってくるたびに、選び直す
   flowAt = Date.now();
   try {
-    const d = await (await fetch(`${API}/api/news?genre=car&limit=80&offset=0`)).json();
+    const d = await (await fetch(`${API}/api/news?genre=all&limit=150&offset=0`)).json();
     if (tab !== "flow") return;
-    flowItems = (d.items || []).slice(0, 44);
+    flowPool = d.items || [];
+    flowItems = flowPick();
     buildFlow();
     runFlow();
   } catch { flowAt = 0; }
 }
-function stopFlow() { $("flow").hidden = true; document.body.classList.remove("flowing"); cancelAnimationFrame(flowRaf); flowRaf = 0; }
+function stopFlow() { flowEls = []; $("flow").hidden = true; document.body.classList.remove("flowing"); cancelAnimationFrame(flowRaf); flowRaf = 0; }
 function buildFlow() {
   const box = $("flow");
   const n = flowItems.length;
