@@ -380,7 +380,9 @@ const MARKETS = [
 ];
 let marketsCache = { at: 0, data: [] };
 async function fetchMarket(m) {
+  if (Date.now() < marketsBackoff) throw new Error("backoff");
   const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(m.sym)}?interval=1m&range=1d`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
+  if (r.status === 429) marketsBackoff = Date.now() + 60 * 1000;
   if (!r.ok) throw new Error("HTTP " + r.status);
   const meta = (await r.json()).chart.result[0].meta;
   const price = meta.regularMarketPrice;
@@ -390,8 +392,10 @@ async function fetchMarket(m) {
   return { id: m.id, label: m.label, dp: m.dp, unit: m.unit || "", price, change: has ? price - prev : null, pct: has ? ((price - prev) / prev) * 100 : null, time: (meta.regularMarketTime || 0) * 1000 };
 }
 let marketsBusy = null;
+let marketsBackoff = 0;
 async function getMarkets() {
-  if (Date.now() - marketsCache.at < 45 * 1000) return marketsCache.data;
+  // 3秒ごとの更新に対応。閲覧者が何人いても、取得は3秒に1回だけ。拒否(429)されたら1分間やめて前回値を出す
+  if (Date.now() - marketsCache.at < 2500 || Date.now() < marketsBackoff) return marketsCache.data;
   if (!marketsBusy) {
     marketsBusy = Promise.all(MARKETS.map((m) => fetchMarket(m).catch(() => marketsCache.data.find((x) => x.id === m.id) || null)))
       .then((rows) => { marketsCache = { at: Date.now(), data: rows.filter(Boolean) }; })
@@ -457,7 +461,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === "/api/markets") {
     const data = await getMarkets().catch(() => []);
-    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=30", "Access-Control-Allow-Origin": "*" });
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" });
     return res.end(JSON.stringify({ items: data }));
   }
   if (url.pathname === "/healthz") {

@@ -165,6 +165,9 @@ async function loadMarkets() {
   } catch { box.hidden = true; }
 }
 
+// 金融タブを見ていて、画面が表示されている間だけ、3秒ごとに更新する
+setInterval(() => { if (tab === "finance" && !document.hidden) loadMarkets(); }, 3000);
+
 // 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
 async function load({ fresh = false, poll = false } = {}) {
   const id = ++reqId;
