@@ -222,18 +222,23 @@ async function loadHot() {
   } catch { hotAt = 0; }
 }
 // ---- 車タブ: 中古車の人気ランキング（国産／外車）と、新車情報の流れる帯 ----
-let carAt = 0;
+let carAt = 0, carNews = [];
 async function loadCar() {
   const box = $("markets");
   if (tab !== "car") { renderTicker("newcar", "新車", []); return; }
-  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; carAt = 0; }
+  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; }
+  if (carNews.length && !tickers.newcar.length) renderTicker("newcar", "新車", carNews);
   if (Date.now() - carAt < 60 * 1000) return;
   carAt = Date.now();
   try {
     const d = await (await fetch(`${API}/api/car`)).json();
+    if (!(d.news || []).length) { carAt = 0; return; }
+    const same = JSON.stringify(d.news.map((n) => n.link)) === JSON.stringify(carNews.map((n) => n.link));
+    carNews = d.news;
     if (tab !== "car") return;
     box.hidden = true;
-    renderTicker("newcar", "新車", d.news || []);
+    if (same && tickers.newcar.length) return; // 変わっていなければ、流れている帯をやり直さない
+    renderTicker("newcar", "新車", carNews);
   } catch { carAt = 0; }
 }
 // ---- 金融タブ: Investing.com のインサイダー取引記事を、1本ずつ自動で切り替えて見せる専用枠 ----
@@ -250,7 +255,11 @@ function showInsider() {
 async function loadInsider() {
   const box = $("insider");
   if (tab !== "finance") { box.hidden = true; clearInterval(insiderTimer); insiderTimer = null; return; }
-  if (insiderItems.length && Date.now() - insiderAt < 3 * 60 * 1000) { box.hidden = false; return; }
+  if (insiderItems.length && Date.now() - insiderAt < 3 * 60 * 1000) {
+    box.hidden = false;
+    if (!insiderTimer) insiderTimer = setInterval(() => { if (!insiderHover && !document.hidden && tab === "finance") { insiderIdx = (insiderIdx + 1) % insiderItems.length; showInsider(); } }, 5000);
+    return;
+  }
   insiderAt = Date.now();
   try {
     const d = await (await fetch(`${API}/api/insider`)).json();
