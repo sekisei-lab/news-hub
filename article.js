@@ -5,6 +5,8 @@ const MAX_PAGES = 8;
 const MIN_P = 20; // これより短い段落は無視（見出し・ボタン類）
 const NOISE = /無断転載|著作権|Copyright|©|cookie|Cookie|会員登録|ログイン|購読|続きを読む|関連記事|あわせて読みたい|ランキング|この記事は|シェア|フォロー|コメント|広告|利用規約|プライバシー|個人情報|JavaScript|ブラウザ/;
 
+const flat = (v) => (typeof v === "string" ? Buffer.from(v, "utf8").toString("utf8") : v); // ページ全文を引きずらない新しい文字列にする
+
 module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
   const cache = new Map(); // url -> { at, data }
   const VER = 4; // 抽出ロジックを変えたら上げる（古いキャッシュを使わない）
@@ -109,13 +111,13 @@ module.exports = function makeExtractor({ fetchText, clean, absUrl }) {
         seenPages.add(cur);
         const html = (await fetchText(cur, 9000)).slice(0, 1500000);
         if (page === 1) {
-          data.image = absUrl(meta(html, "og:image|twitter:image"), url);
-          data.description = meta(html, "og:description|description");
+          data.image = flat(absUrl(meta(html, "og:image|twitter:image"), url));
+          data.description = flat(meta(html, "og:description|description"));
         }
         for (const p of paragraphs(html)) {
           if (seenP.has(p)) continue;
           seenP.add(p);
-          data.paragraphs.push(p);
+          data.paragraphs.push(flat(p));
           total += p.length;
         }
         data.pages = page;

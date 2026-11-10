@@ -6,7 +6,7 @@ const path = require("path");
 const zlib = require("zlib");
 
 const PORT = process.env.PORT || 3000;
-const REFRESH_MS = 3 * 60 * 1000; // フィード再取得間隔
+const REFRESH_MS = (Number(process.env.REFRESH_SEC) || 180) * 1000; // フィード再取得間隔
 const MAX_PER_GENRE = 400;
 const UA = "Mozilla/5.0 (compatible; NewsHub/1.0)";
 
@@ -161,8 +161,9 @@ async function fetchOg(url) {
         new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["'](?:${re})["']`, "i").exec(html);
       return m ? clean(m[1]) : "";
     };
-    v.desc = meta("og:description|description");
-    v.image = absUrl(meta("og:image|twitter:image"), url);
+    // 取り出した文字列は新しいコピーにする（ページ全文の一部のままだと、ページごとメモリに残り続ける）
+    v.desc = flat(meta("og:description|description"));
+    v.image = flat(absUrl(meta("og:image|twitter:image"), url));
     if (DEFAULT_IMG.test(v.image)) v.image = "";
   } catch {}
   if (ogCache.size > 3000) ogCache.delete(ogCache.keys().next().value);
@@ -203,6 +204,8 @@ async function pool(items, n, fn) {
 
 // ---------- 集約 ----------
 const store = { updatedAt: 0, items: {}, errors: {} };
+const flat = (v) => (typeof v === "string" ? Buffer.from(v, "utf8").toString("utf8") : v);
+const flatItem = (i) => Object.fromEntries(Object.entries(i).map(([k, v]) => [k, flat(v)]));
 const archive = new Map(); // "genre|link" -> 記事（期間内のものを蓄積）
 // 再起動しても記事を失わないよう、ファイルに保存して起動時に読み戻す。
 // DATA_DIR をディスク（Render の有料プランなど）に向けると再デプロイ後も残る。無料プランでは再起動で消える。
@@ -266,8 +269,11 @@ async function refresh() {
         if (!i.title || !i.link) continue;
         const key = `${g}|${i.link}`;
         const prev = archive.get(key);
-        if (prev) Object.assign(prev, { ...i, firstSeen: prev.firstSeen, time: i.time || prev.time });
-        else archive.set(key, { ...i, firstSeen: Date.now() });
+        // 文字列は新しいコピーにして保存する。そのままだと、フィード全文の一部（スライス）として
+        // 取得のたびの巨大なXML全体をメモリに残し続けてしまい、数十分でメモリ切れになる。
+        const own = flatItem(i);
+        if (prev) Object.assign(prev, { ...own, firstSeen: prev.firstSeen, time: i.time || prev.time });
+        else archive.set(key, { ...own, firstSeen: Date.now() });
       }
     }
     const lists = Object.fromEntries(Object.keys(GENRES).map((g) => [g, []]));
@@ -300,6 +306,9 @@ async function refresh() {
     store.items = build();
     store.errors = errors;
     store.updatedAt = Date.now();
+    if (global.gc) global.gc();
+    const mu = process.memoryUsage();
+    console.log(new Date().toISOString(), `mem rss=${Math.round(mu.rss / 1048576)}MB heap=${Math.round(mu.heapUsed / 1048576)}MB`);
     console.log(new Date().toISOString(), "refreshed", Object.entries(store.items).map(([k, v]) => `${k}:${v.length}`).join(" "), Object.keys(errors).length ? `errors:${Object.keys(errors).length}` : "");
     stage1Done();
     saveSnapshot();
