@@ -148,13 +148,16 @@ function render() {
 }
 
 // ---- 市況（金融タブの上に表示）----
+// 市況の帯を出すタブと、そのデータの種類（金融・経済=主要市況、国際=世界の株価指数、IT=主要テック株）
+const MARKET_SET = { finance: "finance", economy: "finance", world: "world", it: "it" };
 async function loadMarkets() {
   const box = $("markets");
   if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; } // タブが変わったら前の内容を消す
-  if (tab !== "finance") { if (tab !== "national" && tab !== "car") box.hidden = true; return; }
+  const set = MARKET_SET[tab];
+  if (!set) { if (tab !== "national" && tab !== "car") box.hidden = true; return; }
   try {
-    const d = await (await fetch(`${API}/api/markets`)).json();
-    if (tab !== "finance" || !d.items?.length) { box.hidden = true; return; }
+    const d = await (await fetch(`${API}/api/markets?set=${set}`)).json();
+    if (MARKET_SET[tab] !== set || !d.items?.length) { box.hidden = true; return; }
     const fmt = (n, dp) => n.toLocaleString("ja-JP", { minimumFractionDigits: dp, maximumFractionDigits: dp });
     box.innerHTML = d.items.map((m) => {
       const cls = m.change > 0 ? "up" : m.change < 0 ? "down" : "";
@@ -167,7 +170,7 @@ async function loadMarkets() {
 }
 
 // 金融タブを見ていて、画面が表示されている間だけ、3秒ごとに更新する
-setInterval(() => { if (tab === "finance" && !document.hidden) loadMarkets(); }, 3000);
+setInterval(() => { if (MARKET_SET[tab] && !document.hidden) loadMarkets(); }, 3000);
 
 // ---- 国内タブの天気ヘッダー（東京の天気・気温、台風、寒波・熱波）----
 async function loadWeather() {

@@ -371,14 +371,35 @@ function sendApi(req, res, entry, etag) {
 
 // ---------- 市況（日経平均・S&P500・ドル円・ビットコイン・原油）----------
 // Yahoo Finance の公開チャートから取得。数分の遅れがありうる。取れない指標は出さない。
-const MARKETS = [
-  { id: "n225", label: "日経平均", sym: "^N225", dp: 0 },
-  { id: "spx", label: "S&P500", sym: "^GSPC", dp: 0 },
-  { id: "usdjpy", label: "ドル円", sym: "JPY=X", dp: 2 },
-  { id: "btc", label: "ビットコイン", sym: "BTC-JPY", dp: 0, unit: "円" },
-  { id: "wti", label: "原油(WTI)", sym: "CL=F", dp: 2, unit: "$" },
-];
-let marketsCache = { at: 0, data: [] };
+const MARKET_SETS = {
+  // 金融・経済タブ
+  finance: [
+    { id: "n225", label: "日経平均", sym: "^N225", dp: 0 },
+    { id: "spx", label: "S&P500", sym: "^GSPC", dp: 0 },
+    { id: "usdjpy", label: "ドル円", sym: "JPY=X", dp: 2 },
+    { id: "btc", label: "ビットコイン", sym: "BTC-JPY", dp: 0, unit: "円" },
+    { id: "wti", label: "原油(WTI)", sym: "CL=F", dp: 2, unit: "$" },
+  ],
+  // 国際タブ: 主要国の株価指数と為替
+  world: [
+    { id: "dji", label: "NYダウ", sym: "^DJI", dp: 0 },
+    { id: "ixic", label: "ナスダック", sym: "^IXIC", dp: 0 },
+    { id: "gdaxi", label: "ドイツDAX", sym: "^GDAXI", dp: 0 },
+    { id: "ftse", label: "英FTSE100", sym: "^FTSE", dp: 0 },
+    { id: "sse", label: "上海総合", sym: "000001.SS", dp: 0 },
+    { id: "eurusd", label: "ユーロドル", sym: "EURUSD=X", dp: 4 },
+  ],
+  // ITタブ: 主要テック企業の株価（ドル）
+  it: [
+    { id: "nvda", label: "NVIDIA", sym: "NVDA", dp: 2, unit: "$" },
+    { id: "aapl", label: "Apple", sym: "AAPL", dp: 2, unit: "$" },
+    { id: "msft", label: "Microsoft", sym: "MSFT", dp: 2, unit: "$" },
+    { id: "googl", label: "Alphabet", sym: "GOOGL", dp: 2, unit: "$" },
+    { id: "amzn", label: "Amazon", sym: "AMZN", dp: 2, unit: "$" },
+    { id: "meta", label: "Meta", sym: "META", dp: 2, unit: "$" },
+  ],
+};
+const marketsCaches = new Map(); // セット名 -> { at, data }
 async function fetchMarket(m) {
   if (Date.now() < marketsBackoff) throw new Error("backoff");
   const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(m.sym)}?interval=1m&range=1d`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
@@ -391,18 +412,21 @@ async function fetchMarket(m) {
   const has = Number.isFinite(prev) && prev;
   return { id: m.id, label: m.label, dp: m.dp, unit: m.unit || "", price, change: has ? price - prev : null, pct: has ? ((price - prev) / prev) * 100 : null, time: (meta.regularMarketTime || 0) * 1000 };
 }
-let marketsBusy = null;
+const marketsBusy = new Map();
 let marketsBackoff = 0;
-async function getMarkets() {
-  // 3秒ごとの更新に対応。閲覧者が何人いても、取得は3秒に1回だけ。拒否(429)されたら1分間やめて前回値を出す
-  if (Date.now() - marketsCache.at < 2500 || Date.now() < marketsBackoff) return marketsCache.data;
-  if (!marketsBusy) {
-    marketsBusy = Promise.all(MARKETS.map((m) => fetchMarket(m).catch(() => marketsCache.data.find((x) => x.id === m.id) || null)))
-      .then((rows) => { marketsCache = { at: Date.now(), data: rows.filter(Boolean) }; })
-      .finally(() => { marketsBusy = null; });
+async function getMarkets(setName = "finance") {
+  const defs = MARKET_SETS[setName] || MARKET_SETS.finance;
+  const key = MARKET_SETS[setName] ? setName : "finance";
+  const cache = marketsCaches.get(key) || { at: 0, data: [] };
+  // 3秒ごとの更新に対応。閲覧者が何人いても、セットごとに取得は3秒に1回だけ。拒否(429)されたら1分間やめて前回値を出す
+  if (Date.now() - cache.at < 2500 || Date.now() < marketsBackoff) return cache.data;
+  if (!marketsBusy.has(key)) {
+    marketsBusy.set(key, Promise.all(defs.map((m) => fetchMarket(m).catch(() => cache.data.find((x) => x.id === m.id) || null)))
+      .then((rows) => { marketsCaches.set(key, { at: Date.now(), data: rows.filter(Boolean) }); })
+      .finally(() => { marketsBusy.delete(key); }));
   }
-  await marketsBusy;
-  return marketsCache.data;
+  await marketsBusy.get(key);
+  return (marketsCaches.get(key) || cache).data;
 }
 
 // ---------- 国内タブの天気ヘッダー（東京の天気・気温・台風・寒波/熱波）----------
@@ -653,7 +677,7 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ image }));
   }
   if (url.pathname === "/api/markets") {
-    const data = await getMarkets().catch(() => []);
+    const data = await getMarkets(url.searchParams.get("set") || "finance").catch(() => []);
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" });
     return res.end(JSON.stringify({ items: data }));
   }
