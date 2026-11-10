@@ -556,6 +556,48 @@ async function getHot(genre) {
   return out;
 }
 
+// ---------- 車タブ: 中古車の人気ランキング（国産／外車）と新車情報 ----------
+// 中古車: カーセンサーの「人気車種ランキング」（問い合わせデータにもとづく。販売台数ではない）。6時間キャッシュ。
+const JP_MAKERS = ["トヨタ", "日産", "ホンダ", "マツダ", "スバル", "スズキ", "ダイハツ", "三菱", "レクサス", "いすゞ", "光岡", "日野", "ミツオカ"];
+let usedCarCache = { at: 0, data: null };
+async function fetchUsedCarRanking() {
+  const pages = ["https://www.carsensor.net/ranking/index.html", ...Array.from({ length: 9 }, (_, i) => `https://www.carsensor.net/ranking/pop/index${i + 2}.html`)];
+  const rows = [];
+  for (const u of pages) {
+    try {
+      let html = await fetchText(u, 10000);
+      // ページには「人気車種」と「1年以内に発売されたモデル」の2つのランキングがある。最初のもの（人気車種）だけを読む
+      const st = html.indexOf('class="ranking is-active"');
+      if (st >= 0) { const nx = html.indexOf('<ul class="ranking', st + 20); html = html.slice(st, nx > 0 ? nx : undefined); }
+      const ranks = [...html.matchAll(/rankingItem__rank[^"]*">(\d+)</g)].map((m) => Number(m[1]));
+      const names = [...html.matchAll(/class="rankingItem__name">\s*([^<]+?)\s*</g)].map((m) => m[1].replace(/\s+/g, " ").trim());
+      names.forEach((n, i) => { if (ranks[i]) rows.push({ rank: ranks[i], name: n }); });
+    } catch {}
+  }
+  const seen = new Set();
+  const list = rows.filter((r) => (seen.has(r.name) ? false : seen.add(r.name))).sort((a, b) => a.rank - b.rank);
+  const isJp = (n) => JP_MAKERS.some((m) => n.startsWith(m));
+  const fmt = (r) => ({ rank: r.rank, name: r.name });
+  return { domestic: list.filter((r) => isJp(r.name)).slice(0, 3).map(fmt), imported: list.filter((r) => !isJp(r.name)).slice(0, 3).map(fmt), source: "カーセンサー 人気車種（問い合わせ数）" };
+}
+async function getUsedCar() {
+  if (usedCarCache.data && Date.now() - usedCarCache.at < 6 * 60 * 60 * 1000) return usedCarCache.data;
+  try {
+    const d = await fetchUsedCarRanking();
+    if (d.domestic.length || d.imported.length) usedCarCache = { at: Date.now(), data: d };
+  } catch {}
+  return usedCarCache.data;
+}
+const NEWCAR_RE = /新型|新車|発売|発表|フルモデルチェンジ|マイナーチェンジ|一部改良|ワールドプレミア|世界初公開|初公開|予約開始|受注開始|価格|登場|デビュー|ティザー|公開/;
+function getNewCarNews() {
+  const since = Date.now() - 3 * 24 * 60 * 60 * 1000;
+  return mergedList()
+    .filter((i) => i.genres.includes("car") && i.time >= since && NEWCAR_RE.test(i.title))
+    .sort((a, b) => b.time - a.time)
+    .slice(0, 14)
+    .map((i) => ({ ...i, reason: i.source }));
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (url.pathname === "/api/news") {
@@ -626,6 +668,12 @@ const server = http.createServer(async (req, res) => {
     const items = genre === "all" || genre in GENRES ? await getHot(genre).catch(() => []) : [];
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
     return res.end(JSON.stringify({ items }));
+  }
+  if (url.pathname === "/api/car") {
+    const used = await getUsedCar().catch(() => null);
+    const news = store.updatedAt ? getNewCarNews() : [];
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
+    return res.end(JSON.stringify({ used, news }));
   }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" });

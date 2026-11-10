@@ -201,3 +201,6 @@ dialog#settings .df .link { background: none; border: 0; color: var(--sub); padd
 .hotbar .hi .hr { color: #ffb300; font-size: 11px; margin-right: 8px; }
 .hotbar .hs { flex: none; color: #777; margin: 0 28px; font-size: 9px; }
 /* 流れる表示は仕様なので、OSの「動きを減らす」設定でも止めない。マウスを乗せると止まる */
+
+#newcar { border-top: 1px solid #222; }
+.markets .mk .mp + .mp { margin-left: 4px; }

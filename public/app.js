@@ -151,7 +151,7 @@ function render() {
 async function loadMarkets() {
   const box = $("markets");
   if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; } // タブが変わったら前の内容を消す
-  if (tab !== "finance") { if (tab !== "national") box.hidden = true; return; }
+  if (tab !== "finance") { if (tab !== "national" && tab !== "car") box.hidden = true; return; }
   try {
     const d = await (await fetch(`${API}/api/markets`)).json();
     if (tab !== "finance" || !d.items?.length) { box.hidden = true; return; }
@@ -190,38 +190,60 @@ async function loadWeather() {
 }
 setInterval(() => { if (tab === "national" && !document.hidden) loadWeather(); }, 60000);
 
-// ---- 注目ニュース3本（ヘッダーの2行目。黒い帯を横に流れる。マウスを乗せると止まる）----
-let hotItems = [], hotFor = "", hotAt = 0;
+// ---- 横に流れる黒い帯（注目ニュース・新車情報）。マウスを乗せると止まる ----
+const tickers = { hot: [], newcar: [] };
+let hotFor = "", hotAt = 0;
+function renderTicker(id, label, items) {
+  const box = $(id);
+  tickers[id] = items;
+  if (!items.length) { box.hidden = true; return; }
+  const one = items.map((it, i) => `<button type="button" class="hi" data-i="${i}"><span class="hr">${esc(it.reason)}</span>${esc(it.title)}</button>`).join('<span class="hs">◆</span>');
+  // 同じ並びを2回つなげて、端が切れ目なくループするようにする
+  box.innerHTML = `<span class="hl">${esc(label)}</span><div class="hview"><div class="htrack">${one}<span class="hs">◆</span>${one}<span class="hs">◆</span></div></div>`;
+  box.hidden = false;
+  const track = box.querySelector(".htrack");
+  requestAnimationFrame(() => track.style.setProperty("--dur", `${Math.max(20, Math.round(track.scrollWidth / 2 / 55))}s`)); // 速さは毎秒約55px
+}
 async function loadHot() {
-  const box = $("hot");
-  if (tab.startsWith("k:")) { hotItems = []; box.hidden = true; hotFor = tab; return; }
+  // キーワードタブと車タブでは出さない（車は新車情報の帯が同じ役目をするので、重ならないようにする）
+  if (tab.startsWith("k:") || tab === "car") { renderTicker("hot", "注目", []); hotFor = tab; return; }
   if (hotFor === tab && Date.now() - hotAt < 5 * 60 * 1000) return;
   hotFor = tab;
   hotAt = Date.now();
   try {
     const d = await (await fetch(`${API}/api/hot?genre=${encodeURIComponent(tab)}`)).json();
     if (hotFor !== tab) return;
-    hotItems = d.items || [];
-    if (!hotItems.length) hotAt = 0; // まだ用意できていないときは、次の更新でまた取りに行く
-    renderHot();
+    if (!(d.items || []).length) hotAt = 0; // まだ用意できていないときは、次の更新でまた取りに行く
+    renderTicker("hot", "注目", d.items || []);
   } catch { hotAt = 0; }
 }
-function renderHot() {
-  const box = $("hot");
-  if (!hotItems.length) { box.hidden = true; return; }
-  const one = hotItems.map((it, i) => `<button type="button" class="hi" data-i="${i}"><span class="hr">${esc(it.reason)}</span>${esc(it.title)}</button>`).join('<span class="hs">◆</span>');
-  // 同じ並びを2回つなげて、端が切れ目なくループするようにする
-  box.innerHTML = `<span class="hl">注目</span><div class="hview"><div class="htrack">${one}<span class="hs">◆</span>${one}<span class="hs">◆</span></div></div>`;
-  box.hidden = false;
-  const track = box.querySelector(".htrack");
-  requestAnimationFrame(() => track.style.setProperty("--dur", `${Math.max(20, Math.round(track.scrollWidth / 2 / 55))}s`)); // 速さは毎秒約55px
+// ---- 車タブ: 中古車の人気ランキング（国産／外車）と、新車情報の流れる帯 ----
+let carAt = 0;
+async function loadCar() {
+  const box = $("markets");
+  if (tab !== "car") { renderTicker("newcar", "新車", []); return; }
+  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; carAt = 0; }
+  if (!box.innerHTML) carAt = 0;
+  if (Date.now() - carAt < 60 * 1000) return;
+  carAt = Date.now();
+  try {
+    const d = await (await fetch(`${API}/api/car`)).json();
+    if (tab !== "car") return;
+    const grp = (label, list) => list?.length ? `<span class="mk"><span class="mn">${label}</span>${list.map((c, i) => `<span class="mp">${i + 1}位 ${esc(c.name)}</span>`).join("")}</span>` : "";
+    const html = d.used ? `<span class="mk"><span class="mn">中古車の人気(カーセンサー)</span></span>${grp("国産", d.used.domestic)}${grp("外車", d.used.imported)}` : "";
+    if (html) { box.innerHTML = html; box.hidden = false; } else box.hidden = true;
+    renderTicker("newcar", "新車", d.news || []);
+  } catch { carAt = 0; }
 }
-$("hot").addEventListener("click", (e) => {
-  const b = e.target.closest(".hi");
-  if (!b) return;
-  const it = hotItems[Number(b.dataset.i)];
-  if (it) { markRead(it.link); openReader(it); }
-});
+for (const id of ["hot", "newcar"]) {
+  $(id).addEventListener("click", (e) => {
+    const b = e.target.closest(".hi");
+    if (!b) return;
+    const it = tickers[id][Number(b.dataset.i)];
+    if (it) { markRead(it.link); openReader(it); }
+  });
+}
+setInterval(() => { if (tab === "car" && !document.hidden) loadCar(); }, 60000);
 
 // 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
 async function load({ fresh = false, poll = false } = {}) {
@@ -229,6 +251,7 @@ async function load({ fresh = false, poll = false } = {}) {
   loadMarkets();
   loadWeather();
   loadHot();
+  loadCar();
   try {
     const r = await fetch(`${API}/api/news?${queryFor()}&limit=${PAGE}&offset=0${fresh ? "&fresh=1" : ""}`);
     const d = await r.json();
