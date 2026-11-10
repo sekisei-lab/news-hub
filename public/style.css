@@ -204,3 +204,12 @@ dialog#settings .df .link { background: none; border: 0; color: var(--sub); padd
 
 #newcar { border-top: 1px solid #222; }
 .markets .mk .mp + .mp { margin-left: 4px; }
+
+/* 金融タブ: インサイダー取引の専用枠（1本ずつ自動で切り替え） */
+#insider { border-top: 1px solid #222; }
+#insider .hs2 { flex: none; color: #888; font-size: 11px; }
+#insider .ib { flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: 0; color: #fff; font: inherit; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 0; }
+#insider .ib:hover { text-decoration: underline; }
+#insider .ib.fade { animation: insfade .5s ease; }
+#insider .ic { flex: none; color: #888; font-size: 11px; font-variant-numeric: tabular-nums; }
+@keyframes insfade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

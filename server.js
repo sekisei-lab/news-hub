@@ -580,6 +580,21 @@ async function getHot(genre) {
   return out;
 }
 
+// ---------- 金融タブ: Investing.com のインサイダー（内部者）取引記事 ----------
+let insiderCache = { at: 0, items: [] };
+async function getInsider() {
+  if (Date.now() - insiderCache.at < 3 * 60 * 1000) return insiderCache.items;
+  try {
+    const items = (await fetchFeedItems("https://jp.investing.com/rss/news_357.rss"))
+      .filter((i) => i.title && i.link)
+      .sort((a, b) => (b.time || 0) - (a.time || 0))
+      .slice(0, 12)
+      .map((i) => flatItem({ title: i.title, link: i.link, summary: "", image: i.image || "", source: "Investing.com", time: i.time || 0 }));
+    insiderCache = { at: Date.now(), items };
+  } catch { insiderCache.at = Date.now() - 2.5 * 60 * 1000; } // 失敗時は前回分を出し、30秒後に再挑戦
+  return insiderCache.items;
+}
+
 // ---------- 車タブ: 中古車の人気ランキング（国産／外車）と新車情報 ----------
 // 中古車: カーセンサーの「人気車種ランキング」（問い合わせデータにもとづく。販売台数ではない）。6時間キャッシュ。
 const JP_MAKERS = ["トヨタ", "日産", "ホンダ", "マツダ", "スバル", "スズキ", "ダイハツ", "三菱", "レクサス", "いすゞ", "光岡", "日野", "ミツオカ"];
@@ -690,6 +705,11 @@ const server = http.createServer(async (req, res) => {
     if (!store.updatedAt) { res.writeHead(200, { "Content-Type": "application/json" }); return res.end('{"items":[]}'); }
     const genre = url.searchParams.get("genre") || "all";
     const items = genre === "all" || genre in GENRES ? await getHot(genre).catch(() => []) : [];
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
+    return res.end(JSON.stringify({ items }));
+  }
+  if (url.pathname === "/api/insider") {
+    const items = await getInsider();
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
     return res.end(JSON.stringify({ items }));
   }

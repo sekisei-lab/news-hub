@@ -238,6 +238,42 @@ async function loadCar() {
     renderTicker("newcar", "新車", d.news || []);
   } catch { carAt = 0; }
 }
+// ---- 金融タブ: Investing.com のインサイダー取引記事を、1本ずつ自動で切り替えて見せる専用枠 ----
+let insiderItems = [], insiderIdx = 0, insiderTimer = null, insiderAt = 0, insiderHover = false;
+function showInsider() {
+  const box = $("insider");
+  const it = insiderItems[insiderIdx];
+  if (!it) return;
+  const b = box.querySelector(".ib");
+  b.classList.remove("fade"); void b.offsetWidth; b.classList.add("fade");
+  b.textContent = it.title;
+  box.querySelector(".ic").textContent = `${insiderIdx + 1}/${insiderItems.length}`;
+}
+async function loadInsider() {
+  const box = $("insider");
+  if (tab !== "finance") { box.hidden = true; clearInterval(insiderTimer); insiderTimer = null; return; }
+  if (insiderItems.length && Date.now() - insiderAt < 3 * 60 * 1000) { box.hidden = false; return; }
+  insiderAt = Date.now();
+  try {
+    const d = await (await fetch(`${API}/api/insider`)).json();
+    if (tab !== "finance") return;
+    insiderItems = d.items || [];
+    if (!insiderItems.length) { box.hidden = true; insiderAt = 0; return; }
+    insiderIdx = 0;
+    box.innerHTML = '<span class="hl">インサイダー取引</span><span class="hs2">Investing.com</span><button type="button" class="ib"></button><span class="ic"></span>';
+    box.hidden = false;
+    showInsider();
+    clearInterval(insiderTimer);
+    insiderTimer = setInterval(() => { if (!insiderHover && !document.hidden && tab === "finance") { insiderIdx = (insiderIdx + 1) % insiderItems.length; showInsider(); } }, 5000);
+  } catch { insiderAt = 0; }
+}
+$("insider").addEventListener("mouseenter", () => { insiderHover = true; });
+$("insider").addEventListener("mouseleave", () => { insiderHover = false; });
+$("insider").addEventListener("click", (e) => {
+  if (!e.target.closest(".ib")) return;
+  const it = insiderItems[insiderIdx];
+  if (it) { markRead(it.link); openReader(it); }
+});
 for (const id of ["hot", "newcar"]) {
   $(id).addEventListener("click", (e) => {
     const b = e.target.closest(".hi");
@@ -255,6 +291,7 @@ async function load({ fresh = false, poll = false } = {}) {
   loadWeather();
   loadHot();
   loadCar();
+  loadInsider();
   try {
     const r = await fetch(`${API}/api/news?${queryFor()}&limit=${PAGE}&offset=0${fresh ? "&fresh=1" : ""}`);
     const d = await r.json();
