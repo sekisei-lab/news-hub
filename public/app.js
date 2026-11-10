@@ -124,7 +124,7 @@ window.addEventListener("resize", () => {
   rz = setTimeout(() => { if (items.length && calcCols() !== colCount) renderList(); }, 200);
 });
 // カードをクリック/タップすると、新しいタブではなくサイト内の詳細表示を開く（Ctrl/中クリックは従来どおり原文へ）
-const NO_READER = new Set(["Investing.com", "WWD JAPAN"]);
+const NO_READER = new Set(); // 本文を取得できないサイトを入れると、詳細画面を挟まず原文を直接開く
 $("list").addEventListener("click", (e) => {
   const card = e.target.closest?.(".card");
   if (!card || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
