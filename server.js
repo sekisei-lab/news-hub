@@ -209,10 +209,12 @@ const flatItem = (i) => Object.fromEntries(Object.entries(i).map(([k, v]) => [k,
 const archive = new Map(); // "genre|link" -> 記事（期間内のものを蓄積）
 // 再起動しても記事を失わないよう、ファイルに保存して起動時に読み戻す。
 // DATA_DIR をディスク（Render の有料プランなど）に向けると再デプロイ後も残る。無料プランでは再起動で消える。
+const PERSIST = !!process.env.DATA_DIR; // ディスクを指定したときだけ保存する（無料プランでは意味がなく、CPUとI/Oの無駄になる）
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const SNAP = path.join(DATA_DIR, "archive.json");
 const OGSNAP = path.join(DATA_DIR, "og.json");
 function loadSnapshot() {
+  if (!PERSIST) return;
   try {
     for (const [k, v] of JSON.parse(fs.readFileSync(SNAP, "utf8"))) archive.set(k, v);
     for (const [k, v] of JSON.parse(fs.readFileSync(OGSNAP, "utf8"))) ogCache.set(k, v);
@@ -221,7 +223,7 @@ function loadSnapshot() {
 }
 let savePending = false;
 function saveSnapshot() {
-  if (savePending) return;
+  if (!PERSIST || savePending) return;
   savePending = true;
   setTimeout(() => {
     savePending = false;
@@ -351,7 +353,21 @@ function mergedList() {
 const extractArticle = makeExtractor({ fetchText, clean, absUrl });
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
 const PUBLIC = path.join(__dirname, "public");
+const staticCache = new Map();
 const assetVer = (f) => { try { return Math.floor(fs.statSync(path.join(PUBLIC, f)).mtimeMs / 1000).toString(36); } catch { return "0"; } };
+
+// /api/news の応答は、更新ごとに1回だけ作って使い回す（同じ条件のリクエストで毎回JSON化・圧縮しない）
+const apiCache = new Map();
+let apiCacheAt = 0;
+function sendApi(req, res, entry, etag) {
+  const headers = { ETag: etag, "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=20", Vary: "Accept-Encoding" };
+  if (/gzip/.test(req.headers["accept-encoding"] || "")) {
+    res.writeHead(200, { ...headers, "Content-Encoding": "gzip" });
+    return res.end(entry.gz);
+  }
+  res.writeHead(200, headers);
+  return res.end(entry.body);
+}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
@@ -370,17 +386,17 @@ const server = http.createServer(async (req, res) => {
     const offset = Math.max(parseInt(url.searchParams.get("offset")) || 0, 0);
     const etag = `"${store.updatedAt}-${encodeURIComponent(genre)}-${encodeURIComponent(q.join("+"))}-${limit}-${offset}"`; // ヘッダーは ASCII のみ
     if (req.headers["if-none-match"] === etag) { res.writeHead(304, { ETag: etag }); return res.end(); } // 変更なしなら本文を送らない
+    const cached = apiCache.get(etag);
+    if (cached) return sendApi(req, res, cached, etag);
     let list = mergedList();
     if (genre !== "all") list = list.filter((i) => i.genres.includes(genre));
     if (q.length) list = list.filter((i) => { const t = (i.title + " " + i.summary).toLowerCase(); return q.some((k) => t.includes(k)); });
     const body = Buffer.from(JSON.stringify({ updatedAt: store.updatedAt, genres: GENRES, total: list.length, offset, items: list.slice(offset, offset + limit) }));
-    const headers = { ETag: etag, "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" };
-    if (/\bgzip\b/.test(req.headers["accept-encoding"] || "")) {
-      res.writeHead(200, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
-      return res.end(zlib.gzipSync(body));
-    }
-    res.writeHead(200, headers);
-    return res.end(body);
+    if (apiCacheAt !== store.updatedAt) { apiCache.clear(); apiCacheAt = store.updatedAt; } // 更新されたら作り直す
+    if (apiCache.size > 300) apiCache.delete(apiCache.keys().next().value);
+    const entry = { body, gz: zlib.gzipSync(body) };
+    apiCache.set(etag, entry);
+    return sendApi(req, res, entry, etag);
   }
   if (url.pathname === "/api/article") {
     // 一覧にある記事のURLだけ受け付ける（任意のURLを取りに行かせない）
@@ -416,20 +432,28 @@ const server = http.createServer(async (req, res) => {
   if (!p) p = "index.html";
   const file = path.join(PUBLIC, p);
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
+  const hit = staticCache.get(p);
+  const reply = (e) => {
+    const gz = /gzip/.test(req.headers["accept-encoding"] || "") && e.gz;
+    const headers = { ...e.headers, Vary: "Accept-Encoding" };
+    if (p !== "index.html" && url.searchParams.get("v")) headers["Cache-Control"] = "public, max-age=31536000, immutable";
+    if (gz) headers["Content-Encoding"] = "gzip";
+    res.writeHead(200, headers);
+    res.end(gz ? e.gz : e.raw);
+  };
+  if (hit) return reply(hit);
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end("Not found"); }
-    const headers = { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" };
+    const headers = { "Content-Type": MIME[path.extname(file)] || "application/octet-stream", "Cache-Control": "no-cache" };
     if (p === "index.html") {
       // JS/CSS のURLに版（ファイルの更新時刻）を付ける。中身が変わらない限りブラウザが使い回せる
-      headers["Cache-Control"] = "no-cache";
       data = Buffer.from(data.toString("utf8").replace(/(href|src)="(style\.css|app\.js|config\.js)"/g, (m, a, f) => `${a}="${f}?v=${assetVer(f)}"`));
-    } else headers["Cache-Control"] = url.searchParams.get("v") ? "public, max-age=31536000, immutable" : "no-cache";
-    if (/gzip/.test(req.headers["accept-encoding"] || "") && /^(text\/|application\/(json|javascript))|svg/.test(headers["Content-Type"])) {
-      headers["Content-Encoding"] = "gzip";
-      data = zlib.gzipSync(data);
     }
-    res.writeHead(200, headers);
-    res.end(data);
+    const compressible = /^(text\/|application\/(json|javascript))|svg/.test(headers["Content-Type"]);
+    // ファイルはデプロイ中は変わらないので、読み込みと圧縮は1回だけ
+    const e = { headers, raw: data, gz: compressible ? zlib.gzipSync(data) : null };
+    staticCache.set(p, e);
+    reply(e);
   });
 });
 
