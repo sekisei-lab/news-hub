@@ -53,6 +53,12 @@ const FEEDS = [
   { genre: "finance", source: "共同通信", url: KYODO, filter: FINANCE_KW },
   { genre: "finance", source: "日テレNEWS", url: NTV, filter: FINANCE_KW },
   { genre: "finance", source: "Forbes JAPAN", url: YM("forbes"), filter: FINANCE_KW },
+  // Yahoo!ニュース経由の経済・マネー系メディア（本文を詳細画面で読める）
+  { genre: "finance", source: "みんかぶ", url: YM("minkabu") },
+  { genre: "finance", source: "MONEY PLUS", url: YM("moneyplus") },
+  { genre: "finance", source: "マネーポストWEB", url: YM("moneypost"), filter: FINANCE_KW },
+  { genre: "finance", source: "ダイヤモンド・オンライン", url: YM("diamond"), filter: FINANCE_KW },
+  { genre: "finance", source: "東洋経済", url: YM("toyo"), filter: FINANCE_KW },
   // 車
   { genre: "car", source: "レスポンス", url: "https://response.jp/rss/index.rdf" },
   { genre: "car", source: "レスポンス", url: "https://response.jp/rss/index.rdf?page=2" },
@@ -60,8 +66,8 @@ const FEEDS = [
   ...pages("car", "くるまのニュース", "https://kuruma-news.jp/feed", 8),
   { genre: "car", source: "Motor-Fan", url: "https://motor-fan.jp/feed" },
   // コスメ
-  { genre: "cosme", source: "WWD JAPAN", url: "https://www.wwdjapan.com/feed", filter: COSME_KW },
-  ...pages("cosme", "WWD JAPAN", "https://www.wwdjapan.com/feed", 2, "?paged=", COSME_KW),
+  // WWD JAPAN は本体サイトが自動取得を拒否するため、本文を読める Yahoo!ニュース経由のフィードを使う
+  { genre: "cosme", source: "WWD JAPAN", url: YM("wwdjapan"), filter: COSME_KW },
   { genre: "cosme", source: "VOGUE JAPAN", url: "https://www.vogue.co.jp/feed/rss", filter: COSME_KW },
   { genre: "cosme", source: "FASHIONSNAP", url: "https://www.fashionsnap.com/rss.xml", filter: COSME_KW },
   // 国内
@@ -126,7 +132,7 @@ const FEEDS = [
   { genre: "watch", source: "WATCHNAVI", url: "https://watchnavi.com/feed" },
   { genre: "watch", source: "GQ JAPAN", url: "https://gqjapan.jp/feed", filter: WATCH_KW },
   { genre: "watch", source: "FASHIONSNAP", url: "https://www.fashionsnap.com/rss.xml", filter: WATCH_KW },
-  { genre: "watch", source: "WWD JAPAN", url: "https://www.wwdjapan.com/feed", filter: WATCH_KW },
+  { genre: "watch", source: "WWD JAPAN", url: YM("wwdjapan"), filter: WATCH_KW },
   { genre: "watch", source: "VOGUE JAPAN", url: "https://www.vogue.co.jp/feed/rss", filter: WATCH_KW },
   { genre: "watch", source: "Forbes JAPAN", url: YM("forbes"), filter: WATCH_KW },
   { genre: "watch", source: "PRESIDENT Online", url: YM("president"), filter: WATCH_KW },
