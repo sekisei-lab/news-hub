@@ -582,14 +582,15 @@ async function getHot(genre) {
 
 // ---------- 金融タブ: Investing.com のインサイダー（内部者）取引記事 ----------
 let insiderCache = { at: 0, items: [] };
+const insiderStore = new Map(); // link -> 記事。RSSは最新10件しか返さないので、取得のたびに貯めて上位20件を出す
 async function getInsider() {
   if (Date.now() - insiderCache.at < 3 * 60 * 1000) return insiderCache.items;
   try {
-    const items = (await fetchFeedItems("https://jp.investing.com/rss/news_357.rss"))
-      .filter((i) => i.title && i.link)
-      .sort((a, b) => (b.time || 0) - (a.time || 0))
-      .slice(0, 20)
-      .map((i) => flatItem({ title: i.title, link: i.link, summary: "", image: i.image || "", source: "Investing.com", time: i.time || 0 }));
+    for (const i of await fetchFeedItems("https://jp.investing.com/rss/news_357.rss")) {
+      if (i.title && i.link && !insiderStore.has(i.link)) insiderStore.set(i.link, flatItem({ title: i.title, link: i.link, summary: "", image: i.image || "", source: "Investing.com", time: i.time || 0 }));
+    }
+    const items = [...insiderStore.values()].sort((x, y) => y.time - x.time).slice(0, 20);
+    for (const k of [...insiderStore.keys()]) if (!items.some((x) => x.link === k)) insiderStore.delete(k);
     insiderCache = { at: Date.now(), items };
   } catch { insiderCache.at = Date.now() - 2.5 * 60 * 1000; } // 失敗時は前回分を出し、30秒後に再挑戦
   return insiderCache.items;
