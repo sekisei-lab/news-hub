@@ -154,7 +154,7 @@ async function loadMarkets() {
   const box = $("markets");
   if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; } // タブが変わったら前の内容を消す
   const set = MARKET_SET[tab];
-  if (!set) { if (tab !== "national" && tab !== "car") box.hidden = true; return; }
+  if (!set) { if (tab !== "national") box.hidden = true; return; }
   try {
     const d = await (await fetch(`${API}/api/markets?set=${set}`)).json();
     if (MARKET_SET[tab] !== set || !d.items?.length) { box.hidden = true; return; }
@@ -226,15 +226,12 @@ async function loadCar() {
   const box = $("markets");
   if (tab !== "car") { renderTicker("newcar", "新車", []); return; }
   if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; carAt = 0; }
-  if (!box.innerHTML) carAt = 0;
   if (Date.now() - carAt < 60 * 1000) return;
   carAt = Date.now();
   try {
     const d = await (await fetch(`${API}/api/car`)).json();
     if (tab !== "car") return;
-    const grp = (label, list) => list?.length ? `<span class="mk"><span class="mn">${label}</span>${list.map((c, i) => `<span class="mp">${i + 1}位 ${esc(c.name)}</span>`).join("")}</span>` : "";
-    const html = d.used ? `<span class="mk"><span class="mn">中古車の人気(カーセンサー)</span></span>${grp("国産", d.used.domestic)}${grp("外車", d.used.imported)}` : "";
-    if (html) { box.innerHTML = html; box.hidden = false; } else box.hidden = true;
+    box.hidden = true;
     renderTicker("newcar", "新車", d.news || []);
   } catch { carAt = 0; }
 }

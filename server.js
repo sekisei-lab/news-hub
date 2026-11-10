@@ -715,10 +715,9 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ items }));
   }
   if (url.pathname === "/api/car") {
-    const used = await getUsedCar().catch(() => null);
     const news = store.updatedAt ? getNewCarNews() : [];
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
-    return res.end(JSON.stringify({ used, news }));
+    return res.end(JSON.stringify({ news }));
   }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" });
