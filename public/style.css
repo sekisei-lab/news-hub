@@ -223,3 +223,7 @@ body.flowing { overflow: hidden; }
 .flow .sp:hover { text-decoration: underline; }
 .fclose { position: fixed; top: 10px; right: 12px; z-index: 200; background: rgba(0, 0, 0, .6); color: #fff; border: 1px solid rgba(255, 255, 255, .35); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer; }
 .fclose:hover { background: rgba(0, 0, 0, .85); }
+
+.flow .sp { cursor: grab; }
+.flow:active .sp { cursor: grabbing; }
+.flow .sp, .flow .sp * { -webkit-user-drag: none; user-select: none; }

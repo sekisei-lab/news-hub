@@ -382,9 +382,10 @@ function runFlow() {
     const now = performance.now(), dt = Math.max(0.001, (now - lt) / 1000);
     const dx = e.clientX - lx, dy = e.clientY - ly;
     moved = Math.max(moved, Math.hypot(e.clientX - sx, e.clientY - sy));
-    const k = 3.2 / Math.min(box.clientWidth, box.clientHeight); // 画面の大きさに対する回転量
-    flowRot.ay += dx * k; flowRot.ax += dy * k; // マウスを動かした向きに、手前の面がついてくる
-    flowRot.vy = Math.max(-4, Math.min(4, (dx * k) / dt)); flowRot.vx = Math.max(-4, Math.min(4, (dy * k) / dt));
+    // 球の大きさに合わせて回す: つかんだ場所の面が、マウスにぴったりついてくる（球の上でも、タイトルの上でも、背景でも同じ）
+    const kx = 1 / (box.clientWidth * 0.3), ky = 1 / (box.clientHeight * 0.36);
+    flowRot.ay += dx * kx; flowRot.ax += dy * ky;
+    flowRot.vy = Math.max(-4, Math.min(4, (dx * kx) / dt)); flowRot.vx = Math.max(-4, Math.min(4, (dy * ky) / dt));
     lx = e.clientX; ly = e.clientY; lt = now;
   });
   const up = () => {
