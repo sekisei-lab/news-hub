@@ -174,3 +174,17 @@ dialog#settings .df .link { background: none; border: 0; color: var(--sub); padd
 .mk .chg.up { color: #d93025; }
 .mk .chg.down { color: #1a73e8; }
 @media (prefers-color-scheme: dark) { .mk .chg.up { color: #ff6b6b; } .mk .chg.down { color: #6ea0ff; } }
+
+/* 注目ニュース（ヘッダー2行目） */
+.hotbar { max-width: 1000px; margin: 0 auto; padding: 0 16px 8px; display: flex; align-items: center; gap: 10px; font-size: 13px; min-width: 0; }
+.hotbar[hidden] { display: none; }
+.hotbar .hl { flex: none; background: var(--accent); color: #fff; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
+.hotbar .ht { flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: 0; color: var(--text); font: inherit; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 0; }
+.hotbar .ht:hover { color: var(--accent); }
+.hotbar .ht .hr { color: var(--sub); font-size: 11px; margin-right: 8px; }
+.hotbar .ht.fade { animation: hotfade .45s ease; }
+@keyframes hotfade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.hotbar .hd { flex: none; display: flex; gap: 6px; }
+.hotbar .hd button { width: 8px; height: 8px; padding: 0; border-radius: 50%; border: 0; background: var(--line); cursor: pointer; }
+.hotbar .hd button.on { background: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .hotbar .ht.fade { animation: none; } }

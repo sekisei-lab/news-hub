@@ -190,11 +190,52 @@ async function loadWeather() {
 }
 setInterval(() => { if (tab === "national" && !document.hidden) loadWeather(); }, 60000);
 
+// ---- 注目ニュース3本（ヘッダーの2行目。自動で切り替わり、点を押すと手動で切り替えられる）----
+let hotItems = [], hotIdx = 0, hotFor = "", hotAt = 0, hotPaused = false;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+async function loadHot() {
+  const box = $("hot");
+  if (tab.startsWith("k:")) { hotItems = []; box.hidden = true; hotFor = tab; return; }
+  if (hotFor === tab && Date.now() - hotAt < 5 * 60 * 1000) return;
+  hotFor = tab;
+  hotAt = Date.now();
+  try {
+    const d = await (await fetch(`${API}/api/hot?genre=${encodeURIComponent(tab)}`)).json();
+    if (hotFor !== tab) return;
+    hotItems = d.items || [];
+    hotIdx = 0;
+    if (!hotItems.length) hotAt = 0; // まだ用意できていないときは、次の更新でまた取りに行く
+    renderHot(false);
+  } catch { hotAt = 0; }
+}
+function renderHot(animate = true) {
+  const box = $("hot");
+  if (!hotItems.length) { box.hidden = true; return; }
+  const it = hotItems[hotIdx];
+  box.innerHTML =
+    `<span class="hl">注目</span><button type="button" class="ht${animate ? " fade" : ""}" title="${esc(it.title)}"><span class="hr">${esc(it.reason)}</span>${esc(it.title)}</button>` +
+    `<span class="hd">${hotItems.map((_, i) => `<button type="button" data-i="${i}" class="${i === hotIdx ? "on" : ""}" aria-label="${i + 1}本目"></button>`).join("")}</span>`;
+  box.hidden = false;
+}
+$("hot").addEventListener("click", (e) => {
+  const dot = e.target.closest("[data-i]");
+  if (dot) { hotIdx = Number(dot.dataset.i); renderHot(); return; }
+  if (e.target.closest(".ht")) { const it = hotItems[hotIdx]; if (it) { markRead(it.link); openReader(it); } }
+});
+$("hot").addEventListener("mouseenter", () => { hotPaused = true; });
+$("hot").addEventListener("mouseleave", () => { hotPaused = false; });
+setInterval(() => {
+  if (hotPaused || document.hidden || hotItems.length < 2 || readerOpen) return;
+  hotIdx = (hotIdx + 1) % hotItems.length;
+  renderHot(!reduceMotion); // 動きを減らす設定の人には、ふわっとする動きだけ省く（切り替え自体は行う）
+}, 5000);
+
 // 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
 async function load({ fresh = false, poll = false } = {}) {
   const id = ++reqId;
   loadMarkets();
   loadWeather();
+  loadHot();
   try {
     const r = await fetch(`${API}/api/news?${queryFor()}&limit=${PAGE}&offset=0${fresh ? "&fresh=1" : ""}`);
     const d = await r.json();

@@ -473,6 +473,89 @@ async function getWeather() {
   return weatherCache.data;
 }
 
+// ---------- 注目ニュース（ジャンルごとに3本）----------
+// A: Yahoo!ニュースのアクセスランキング（閲覧が多い順）に載っていて、こちらの一覧にもある記事を優先
+// B: 足りない分は「同じ出来事を何社が報じているか」が多い順（こちらの集めたデータだけで決まる）
+const RANK_CAT = { national: "domestic", politics: "domestic", world: "world", economy: "business", finance: "business", sports: "sports", entertainment: "entertainment", life: "life", health: "life", gourmet: "life", travel: "life", all: "" };
+const rankCache = new Map(); // category -> { at, ids: Map(id -> rank) }
+async function getRanking(cat) {
+  if (cat === undefined || cat === null || !(cat in { "": 1, domestic: 1, world: 1, business: 1, sports: 1, entertainment: 1, life: 1 })) return new Map();
+  const hit = rankCache.get(cat);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.ids;
+  const ids = new Map();
+  try {
+    const html = await fetchText(`https://news.yahoo.co.jp/ranking/access/news${cat ? "/" + cat : ""}`, 8000);
+    for (const m of html.matchAll(/https:\/\/news\.yahoo\.co\.jp\/articles\/([a-f0-9]{40})/g)) if (!ids.has(m[1])) ids.set(m[1], ids.size + 1);
+  } catch {}
+  rankCache.set(cat, { at: Date.now(), ids });
+  return ids;
+}
+const yahooId = (link) => /articles\/([a-f0-9]{40})/.exec(link || "")?.[1] || "";
+const grams = (t) => {
+  const s = t.replace(/[【】\[\]()（）「」『』“”"'、。,.!！?？・\s]|[（(][^）)]*[）)]$/g, "");
+  const g = new Set();
+  for (let i = 0; i < s.length - 1; i++) g.add(s.slice(i, i + 2));
+  return g;
+};
+const jaccard = (a, b) => {
+  let inter = 0;
+  for (const x of a) if (b.has(x)) inter++;
+  return inter / (a.size + b.size - inter || 1);
+};
+// 似た見出しをまとめて「同じ出来事」とみなす
+function clusterItems(items) {
+  const gs = items.map((i) => grams(i.title));
+  const parent = items.map((_, i) => i);
+  const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      if (items[i].source === items[j].source) continue;
+      if (jaccard(gs[i], gs[j]) >= 0.33) parent[find(j)] = find(i);
+    }
+  }
+  const groups = new Map();
+  items.forEach((it, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(it); });
+  return [...groups.values()];
+}
+const hotCache = new Map(); // genre -> { at, upd, items }
+async function getHot(genre) {
+  const hit = hotCache.get(genre);
+  if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.items;
+  const since = Date.now() - 36 * 60 * 60 * 1000;
+  let list = mergedList().filter((i) => (genre === "all" || i.genres.includes(genre)) && i.time >= since);
+  const out = [];
+  const used = new Set();
+  const take = (it, reason) => { if (out.length < 3 && !used.has(it.link)) { out.push({ ...it, reason }); used.add(it.link); } };
+  // A: アクセスランキング
+  const ranks = await getRanking(RANK_CAT[genre]);
+  if (ranks.size) {
+    list.map((i) => ({ i, r: ranks.get(yahooId(i.link)) })).filter((x) => x.r).sort((a, b) => a.r - b.r).slice(0, 3).forEach((x) => take(x.i, "アクセス上位"));
+  }
+  // B: 何社が報じているか
+  if (out.length < 3) {
+    const groups = clusterItems(list.slice(0, 500)).map((g) => {
+      const sources = new Set(g.map((x) => x.source));
+      const rep = g.slice().sort((a, b) => (b.image ? 1 : 0) - (a.image ? 1 : 0) || b.time - a.time)[0];
+      return { rep, n: sources.size, t: Math.max(...g.map((x) => x.time)), members: g };
+    }).filter((g) => g.n >= 2).sort((a, b) => b.n - a.n || b.t - a.t);
+    const chosenGroups = [];
+    for (const g of groups) {
+      if (out.length >= 3) break;
+      // Aで選んだ記事と同じ出来事なら重ねない
+      if (g.members.some((m) => used.has(m.link))) continue;
+      take(g.rep, `${g.n}社が報道`);
+      chosenGroups.push(g);
+    }
+  }
+  // 3本に満たないジャンルは、新着の記事で埋める（画像つきを優先）
+  if (out.length < 3) {
+    list.filter((i) => i.image).slice(0, 12).forEach((i) => take(i, "新着"));
+    list.slice(0, 12).forEach((i) => take(i, "新着"));
+  }
+  hotCache.set(genre, { at: Date.now(), items: out });
+  return out;
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (url.pathname === "/api/news") {
@@ -536,6 +619,13 @@ const server = http.createServer(async (req, res) => {
     const data = await getWeather().catch(() => null);
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
     return res.end(JSON.stringify(data || {}));
+  }
+  if (url.pathname === "/api/hot") {
+    if (!store.updatedAt) { res.writeHead(200, { "Content-Type": "application/json" }); return res.end('{"items":[]}'); }
+    const genre = url.searchParams.get("genre") || "all";
+    const items = genre === "all" || genre in GENRES ? await getHot(genre).catch(() => []) : [];
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
+    return res.end(JSON.stringify({ items }));
   }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" });
