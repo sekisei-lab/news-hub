@@ -147,9 +147,28 @@ function render() {
   if (tab !== loadedTab) load(); // 設定変更などで表示中のタブが変わったら読み直す
 }
 
+// ---- 市況（金融タブの上に表示）----
+async function loadMarkets() {
+  const box = $("markets");
+  if (tab !== "finance") { box.hidden = true; return; }
+  try {
+    const d = await (await fetch(`${API}/api/markets`)).json();
+    if (tab !== "finance" || !d.items?.length) { box.hidden = true; return; }
+    const fmt = (n, dp) => n.toLocaleString("ja-JP", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+    box.innerHTML = d.items.map((m) => {
+      const cls = m.change > 0 ? "up" : m.change < 0 ? "down" : "";
+      const arrow = m.change > 0 ? "▲" : m.change < 0 ? "▼" : "";
+      const ch = m.pct == null ? "" : `<span class="chg ${cls}">${arrow}${Math.abs(m.pct).toFixed(2)}%</span>`;
+      return `<span class="mk"><span class="mn">${esc(m.label)}</span><span class="mp">${m.unit === "$" ? "$" : ""}${fmt(m.price, m.dp)}${m.unit === "円" ? "円" : ""}</span>${ch}</span>`;
+    }).join("");
+    box.hidden = false;
+  } catch { box.hidden = true; }
+}
+
 // 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
 async function load({ fresh = false, poll = false } = {}) {
   const id = ++reqId;
+  loadMarkets();
   try {
     const r = await fetch(`${API}/api/news?${queryFor()}&limit=${PAGE}&offset=0${fresh ? "&fresh=1" : ""}`);
     const d = await r.json();

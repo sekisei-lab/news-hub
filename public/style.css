@@ -162,3 +162,15 @@ dialog#settings .df .pri { background: var(--accent); border-color: var(--accent
 dialog#settings .df .ghost { border: 1px solid var(--line); background: var(--card); color: var(--text); }
 dialog#settings .df .link { background: none; border: 0; color: var(--sub); padding: 10px 4px; font-size: 13px; text-decoration: underline; }
 @media (max-width: 360px) { #tabList { grid-template-columns: 1fr; } }
+
+/* 市況（金融タブ）: ヘッダーの中に1行で固定表示 */
+.markets { max-width: 1000px; margin: 0 auto; padding: 0 16px 8px; display: flex; align-items: center; gap: 16px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; font-size: 12px; }
+.markets[hidden] { display: none; }
+.markets::-webkit-scrollbar { display: none; }
+.mk { flex: none; display: inline-flex; align-items: baseline; gap: 6px; }
+.mk .mn { color: var(--sub); }
+.mk .mp { font-weight: 700; font-variant-numeric: tabular-nums; }
+.mk .chg { font-variant-numeric: tabular-nums; color: var(--sub); }
+.mk .chg.up { color: #d93025; }
+.mk .chg.down { color: #1a73e8; }
+@media (prefers-color-scheme: dark) { .mk .chg.up { color: #ff6b6b; } .mk .chg.down { color: #6ea0ff; } }

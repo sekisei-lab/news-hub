@@ -369,6 +369,38 @@ function sendApi(req, res, entry, etag) {
   return res.end(entry.body);
 }
 
+// ---------- 市況（日経平均・S&P500・ドル円・ビットコイン・原油）----------
+// Yahoo Finance の公開チャートから取得。数分の遅れがありうる。取れない指標は出さない。
+const MARKETS = [
+  { id: "n225", label: "日経平均", sym: "^N225", dp: 0 },
+  { id: "spx", label: "S&P500", sym: "^GSPC", dp: 0 },
+  { id: "usdjpy", label: "ドル円", sym: "JPY=X", dp: 2 },
+  { id: "btc", label: "ビットコイン", sym: "BTC-JPY", dp: 0, unit: "円" },
+  { id: "wti", label: "原油(WTI)", sym: "CL=F", dp: 2, unit: "$" },
+];
+let marketsCache = { at: 0, data: [] };
+async function fetchMarket(m) {
+  const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(m.sym)}?interval=1m&range=1d`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const meta = (await r.json()).chart.result[0].meta;
+  const price = meta.regularMarketPrice;
+  const prev = meta.chartPreviousClose ?? meta.previousClose;
+  if (!Number.isFinite(price)) throw new Error("no price");
+  const has = Number.isFinite(prev) && prev;
+  return { id: m.id, label: m.label, dp: m.dp, unit: m.unit || "", price, change: has ? price - prev : null, pct: has ? ((price - prev) / prev) * 100 : null, time: (meta.regularMarketTime || 0) * 1000 };
+}
+let marketsBusy = null;
+async function getMarkets() {
+  if (Date.now() - marketsCache.at < 45 * 1000) return marketsCache.data;
+  if (!marketsBusy) {
+    marketsBusy = Promise.all(MARKETS.map((m) => fetchMarket(m).catch(() => marketsCache.data.find((x) => x.id === m.id) || null)))
+      .then((rows) => { marketsCache = { at: Date.now(), data: rows.filter(Boolean) }; })
+      .finally(() => { marketsBusy = null; });
+  }
+  await marketsBusy;
+  return marketsCache.data;
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   if (url.pathname === "/api/news") {
@@ -422,6 +454,11 @@ const server = http.createServer(async (req, res) => {
     const image = v.image && v.image !== bad ? v.image : "";
     res.writeHead(200, out);
     return res.end(JSON.stringify({ image }));
+  }
+  if (url.pathname === "/api/markets") {
+    const data = await getMarkets().catch(() => []);
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=30", "Access-Control-Allow-Origin": "*" });
+    return res.end(JSON.stringify({ items: data }));
   }
   if (url.pathname === "/healthz") {
     res.writeHead(200, { "Content-Type": "text/plain" });
