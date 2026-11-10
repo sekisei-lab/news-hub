@@ -291,44 +291,113 @@ for (const id of ["hot", "newcar"]) {
 }
 setInterval(() => { if (tab === "car" && !document.hidden) loadCar(); }, 60000);
 
-// ---- ニュースバー: カードなし・ヘッダーなしの全画面。車ジャンルの記事が、色の違うグラデーションの帯になって何本も流れる ----
-let flowItems = [], flowAt = 0;
+// ---- ニュースバー: カードなし・ヘッダーなしの全画面。車ジャンルの記事タイトルが球体の表面に並び、ゆっくり回る ----
+// 正面に来たタイトルほど大きく、下へ回ると薄れて消える。ドラッグ（指でも）で好きな向きに回せる
+let flowItems = [], flowAt = 0, flowEls = [], flowPts = [], flowRaf = 0;
+const flowRot = { ax: 0.4, ay: 0, vx: 0, vy: 0, drag: false };
+const FLOW_AUTO = 0.11; // ふだんの回転（ラジアン/秒）。約57秒で一周
 async function startFlow() {
   const box = $("flow");
   box.hidden = false;
   document.body.classList.add("flowing");
-  if (box.querySelector(".frow") && Date.now() - flowAt < 3 * 60 * 1000) return;
+  if (flowEls.length && Date.now() - flowAt < 3 * 60 * 1000) { runFlow(); return; }
   flowAt = Date.now();
   try {
     const d = await (await fetch(`${API}/api/news?genre=car&limit=80&offset=0`)).json();
     if (tab !== "flow") return;
-    flowItems = d.items || [];
+    flowItems = (d.items || []).slice(0, 44);
     buildFlow();
+    runFlow();
   } catch { flowAt = 0; }
 }
-function stopFlow() { $("flow").hidden = true; document.body.classList.remove("flowing"); }
+function stopFlow() { $("flow").hidden = true; document.body.classList.remove("flowing"); cancelAnimationFrame(flowRaf); flowRaf = 0; }
 function buildFlow() {
   const box = $("flow");
-  if (!flowItems.length) { box.innerHTML = '<button type="button" class="fclose">✕ 戻る</button>'; return; }
-  const rows = Math.max(4, Math.floor(innerHeight / 76));
+  const n = flowItems.length;
   let html = '<button type="button" class="fclose">✕ 戻る</button>';
-  for (let r = 0; r < rows; r++) {
-    let mine = flowItems.map((it, i) => ({ it, i })).filter((x) => x.i % rows === r);
-    if (!mine.length) mine = flowItems.map((it, i) => ({ it, i })).slice(r % flowItems.length).slice(0, 4);
-    const one = mine.map((x) => `<button type="button" class="fi" data-i="${x.i}"><span class="fs">${esc(x.it.source)}</span>${esc(x.it.title)}</button>`).join('<span class="fd">◆</span>');
-    const h = Math.round(205 + (r * 150) / Math.max(1, rows - 1)); // 上から下へ、青→紫→赤紫へ色が移る
-    html += `<div class="frow" style="background:linear-gradient(90deg,hsl(${h},72%,36%),hsl(${h + 35},78%,50%))"><div class="ftrack${r % 2 ? " rev" : ""}" style="--spd:${60 + (r % 3) * 22}">${one}<span class="fd">◆</span>${one}<span class="fd">◆</span></div></div>`;
-  }
+  flowPts = [];
+  const maxc = box.clientWidth < 600 ? 14 : 24; // 狭い画面では短く切る
+  flowItems.forEach((it, i) => {
+    // 球面にほぼ均等に並べる（フィボナッチ螺旋）
+    const y = n > 1 ? 1 - (2 * (i + 0.5)) / n : 0;
+    const r = Math.sqrt(1 - y * y), th = i * 2.399963;
+    flowPts.push([Math.cos(th) * r, y, Math.sin(th) * r]);
+    const t = it.title.length > maxc ? it.title.slice(0, maxc - 1) + "…" : it.title;
+    html += `<button type="button" class="sp" data-i="${i}" style="color:hsl(${Math.round(200 + (i * 150) / Math.max(1, n - 1))},85%,78%)">${esc(t)}</button>`;
+  });
   box.innerHTML = html;
-  requestAnimationFrame(() => box.querySelectorAll(".ftrack").forEach((t) => t.style.setProperty("--dur", `${Math.max(25, Math.round(t.scrollWidth / 2 / Number(t.style.getPropertyValue("--spd"))))}s`)));
+  flowEls = [...box.querySelectorAll(".sp")];
 }
-$("flow").addEventListener("click", (e) => {
-  if (e.target.closest(".fclose")) { tab = "all"; store.set("newshub.tab", "all"); renderTabs(); load(); return; }
-  const b = e.target.closest(".fi");
-  if (b) { const it = flowItems[Number(b.dataset.i)]; if (it) { markRead(it.link); openReader(it); } }
-});
-let flowResize = 0;
-addEventListener("resize", () => { clearTimeout(flowResize); flowResize = setTimeout(() => { if (tab === "flow") buildFlow(); }, 300); });
+function runFlow() {
+  if (flowRaf || tab !== "flow") return;
+  let last = performance.now();
+  const frame = (now) => {
+    flowRaf = 0;
+    if (tab !== "flow" || document.hidden) { if (tab === "flow") flowRaf = requestAnimationFrame((t) => { last = t; frame(t); }); return; }
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const R = flowRot;
+    if (!R.drag) {
+      R.vx += (FLOW_AUTO - R.vx) * Math.min(1, dt * 2); // 手を離したら、勢いが静まってゆっくりの回転に戻る
+      R.vy += (0 - R.vy) * Math.min(1, dt * 2);
+      R.ax += R.vx * dt;
+      R.ay += R.vy * dt;
+    }
+    const box = $("flow"), W = box.clientWidth, H = box.clientHeight;
+    const Rx = W * 0.3, Ry = H * 0.36, base = Math.max(13, Math.min(20, H * 0.026));
+    const ca = Math.cos(R.ax), sa = Math.sin(R.ax), cb = Math.cos(R.ay), sb = Math.sin(R.ay);
+    for (let i = 0; i < flowEls.length; i++) {
+      const p = flowPts[i];
+      const y1 = p[1] * ca - p[2] * sa, z1 = p[1] * sa + p[2] * ca; // 横軸まわり（正面が上から下へ動く）
+      const x2 = p[0] * cb + z1 * sb, z2 = -p[0] * sb + z1 * cb; // 縦軸まわり（ドラッグの左右）
+      const d = (z2 + 1) / 2; // 0=奥 1=手前
+      const sy = -y1; // 画面では下が正
+      let op = Math.max(0, Math.min(1, (d - 0.25) / 0.5)); // 奥は見えなくする
+      if (sy > 0.35) op *= Math.max(0, 1 - (sy - 0.35) / 0.45); // 下に回ったら消える
+      const el = flowEls[i];
+      el.style.opacity = op.toFixed(3);
+      el.style.visibility = op < 0.02 ? "hidden" : "visible";
+      el.style.zIndex = String(Math.round(d * 100));
+      el.style.fontSize = base + "px";
+      el.style.transform = `translate(-50%,-50%) translate(${(x2 * Rx + W / 2).toFixed(1)}px,${(sy * Ry + H / 2).toFixed(1)}px) scale(${(0.42 + 1.2 * d * d).toFixed(3)})`;
+    }
+    flowRaf = requestAnimationFrame(frame);
+  };
+  flowRaf = requestAnimationFrame((t) => { last = t; frame(t); });
+}
+{
+  const box = $("flow");
+  let sx = 0, sy = 0, lx = 0, ly = 0, lt = 0, moved = 0, downEl = null;
+  box.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".fclose")) return;
+    flowRot.drag = true; moved = 0; downEl = e.target.closest(".sp");
+    sx = lx = e.clientX; sy = ly = e.clientY; lt = performance.now();
+    try { box.setPointerCapture(e.pointerId); } catch {}
+  });
+  box.addEventListener("pointermove", (e) => {
+    if (!flowRot.drag) return;
+    const now = performance.now(), dt = Math.max(0.001, (now - lt) / 1000);
+    const dx = e.clientX - lx, dy = e.clientY - ly;
+    moved = Math.max(moved, Math.hypot(e.clientX - sx, e.clientY - sy));
+    const k = 3.2 / Math.min(box.clientWidth, box.clientHeight); // 画面の大きさに対する回転量
+    flowRot.ay -= dx * k; flowRot.ax -= dy * k; // つかんだ面がついてくる向き
+    flowRot.vy = Math.max(-4, Math.min(4, (-dx * k) / dt)); flowRot.vx = Math.max(-4, Math.min(4, (-dy * k) / dt));
+    lx = e.clientX; ly = e.clientY; lt = now;
+  });
+  const up = () => {
+    if (!flowRot.drag) return;
+    flowRot.drag = false;
+    if (performance.now() - lt > 120) { flowRot.vx = FLOW_AUTO; flowRot.vy = 0; } // 止めてから離したときは勢いなし
+    if (moved < 6 && downEl) { const it = flowItems[Number(downEl.dataset.i)]; if (it) { markRead(it.link); openReader(it); } }
+    downEl = null;
+  };
+  box.addEventListener("pointerup", up);
+  box.addEventListener("pointercancel", () => { flowRot.drag = false; downEl = null; });
+  box.addEventListener("wheel", (e) => { e.preventDefault(); flowRot.ax += e.deltaY * 0.002; }, { passive: false });
+  box.addEventListener("click", (e) => {
+    if (e.target.closest(".fclose")) { tab = "all"; store.set("newshub.tab", "all"); renderTabs(); load(); }
+  });
+}
 
 // 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
 async function load({ fresh = false, poll = false } = {}) {
