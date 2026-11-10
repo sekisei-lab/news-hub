@@ -148,8 +148,8 @@ function render() {
 }
 
 // ---- 市況（金融タブの上に表示）----
-// 市況の帯を出すタブと、そのデータの種類（金融・経済=主要市況、国際=世界の株価指数、IT=主要テック株）
-const MARKET_SET = { finance: "finance", economy: "finance", world: "world", it: "it" };
+// 市況の帯を出すタブと、そのデータの種類（金融=主要市況、IT=主要テック株）
+const MARKET_SET = { finance: "finance", it: "it" };
 async function loadMarkets() {
   const box = $("markets");
   if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; } // タブが変わったら前の内容を消す
