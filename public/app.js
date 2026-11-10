@@ -12,7 +12,7 @@ let prefs = store.get("newshub.prefs", { order: [], hidden: [], custom: [], dele
 if (!isNewVisitor && prefs.init === undefined) prefs.init = true; // 以前から使っている人の設定は変えない
 prefs.deleted ||= [];
 // 初期表示のタブ（それ以外は設定でONにすると出る）
-const DEFAULT_TABS = ["national", "world", "politics", "economy", "finance", "it", "car", "cosme"];
+const DEFAULT_TABS = ["national", "world", "politics", "economy", "finance", "it", "car", "cosme", "flow"];
 function applyDefaultTabs() {
   if (prefs.init || !Object.keys(genres).length) return;
   prefs.hidden = Object.keys(genres).filter((id) => !DEFAULT_TABS.includes(id));
@@ -38,6 +38,7 @@ function ago(t) {
 // ---- タブ（標準ジャンル + 自分用キーワードタブ）----
 function allTabs() {
   const base = Object.entries(genres).filter(([id]) => !prefs.deleted.includes(id)).map(([id, g]) => ({ id, label: g.label }));
+  if (Object.keys(genres).length && !prefs.deleted.includes("flow")) base.push({ id: "flow", label: "ニュースバー" }); // カードなしの全画面ニュースバー（車ジャンルの内容）
   const custom = prefs.custom.map((c) => ({ id: c.id, label: c.label, custom: true }));
   const all = [...base, ...custom];
   const byId = new Map(all.map((t) => [t.id, t]));
@@ -281,9 +282,50 @@ for (const id of ["hot", "newcar"]) {
 }
 setInterval(() => { if (tab === "car" && !document.hidden) loadCar(); }, 60000);
 
+// ---- ニュースバー: カードなし・ヘッダーなしの全画面。車ジャンルの記事が、色の違うグラデーションの帯になって何本も流れる ----
+let flowItems = [], flowAt = 0;
+async function startFlow() {
+  const box = $("flow");
+  box.hidden = false;
+  document.body.classList.add("flowing");
+  if (box.querySelector(".frow") && Date.now() - flowAt < 3 * 60 * 1000) return;
+  flowAt = Date.now();
+  try {
+    const d = await (await fetch(`${API}/api/news?genre=car&limit=80&offset=0`)).json();
+    if (tab !== "flow") return;
+    flowItems = d.items || [];
+    buildFlow();
+  } catch { flowAt = 0; }
+}
+function stopFlow() { $("flow").hidden = true; document.body.classList.remove("flowing"); }
+function buildFlow() {
+  const box = $("flow");
+  if (!flowItems.length) { box.innerHTML = '<button type="button" class="fclose">✕ 戻る</button>'; return; }
+  const rows = Math.max(4, Math.floor(innerHeight / 76));
+  let html = '<button type="button" class="fclose">✕ 戻る</button>';
+  for (let r = 0; r < rows; r++) {
+    let mine = flowItems.map((it, i) => ({ it, i })).filter((x) => x.i % rows === r);
+    if (!mine.length) mine = flowItems.map((it, i) => ({ it, i })).slice(r % flowItems.length).slice(0, 4);
+    const one = mine.map((x) => `<button type="button" class="fi" data-i="${x.i}"><span class="fs">${esc(x.it.source)}</span>${esc(x.it.title)}</button>`).join('<span class="fd">◆</span>');
+    const h = Math.round(205 + (r * 150) / Math.max(1, rows - 1)); // 上から下へ、青→紫→赤紫へ色が移る
+    html += `<div class="frow" style="background:linear-gradient(90deg,hsl(${h},72%,36%),hsl(${h + 35},78%,50%))"><div class="ftrack${r % 2 ? " rev" : ""}" style="--spd:${60 + (r % 3) * 22}">${one}<span class="fd">◆</span>${one}<span class="fd">◆</span></div></div>`;
+  }
+  box.innerHTML = html;
+  requestAnimationFrame(() => box.querySelectorAll(".ftrack").forEach((t) => t.style.setProperty("--dur", `${Math.max(25, Math.round(t.scrollWidth / 2 / Number(t.style.getPropertyValue("--spd"))))}s`)));
+}
+$("flow").addEventListener("click", (e) => {
+  if (e.target.closest(".fclose")) { tab = "all"; store.set("newshub.tab", "all"); renderTabs(); load(); return; }
+  const b = e.target.closest(".fi");
+  if (b) { const it = flowItems[Number(b.dataset.i)]; if (it) { markRead(it.link); openReader(it); } }
+});
+let flowResize = 0;
+addEventListener("resize", () => { clearTimeout(flowResize); flowResize = setTimeout(() => { if (tab === "flow") buildFlow(); }, 300); });
+
 // 先頭から読み直す（タブ切り替え・更新ボタン・自動更新）
 async function load({ fresh = false, poll = false } = {}) {
   const id = ++reqId;
+  if (tab === "flow") { startFlow(); return; }
+  stopFlow();
   loadMarkets();
   loadWeather();
   loadHot();
