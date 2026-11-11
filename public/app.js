@@ -333,12 +333,23 @@ for (const id of ["hot", "newcar"]) {
 }
 setInterval(() => { if (tab === "car" && !document.hidden) loadCar(); }, 60000);
 
-// ---- ニュースバー: カードなし・ヘッダーなしの全画面。全ジャンルの記事から無作為に選んだタイトルが球体の表面に並び、ゆっくり回る ----
-// 正面に来たタイトルほど大きく、下へ回ると薄れて消える。ドラッグ（指でも）で好きな向きに回せる
+// ---- ニュース🌐: カードなし・ヘッダーなしの全画面。全ジャンルの記事から無作為に選んだタイトルが、光る地球の表面に並んでゆっくり回る ----
+// 手前の半球のタイトルだけが見え、正面に来たものは画像つきのカードになる。ドラッグ（指でも）で好きな向きに回せる。時計つき（待機画面用）
 let flowItems = [], flowPool = [], flowAt = 0, flowEls = [], flowPts = [], flowRaf = 0, flowW = [], flowOp = [], flowRep = [], flowMaxc = 24;
-const flowPick = () => { const a = flowPool.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, 56); }; // 全ジャンルから無作為に56件
+let flowFeat = -1, flowBad = new Set(), flowStars = [], flowShoot = null, flowShootAt = 0, flowClockKey = "";
+const flowShuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+// 全ジャンルから無作為に56件。正面でカードになれるよう、画像つきの記事を半分ほど入れる
+const flowPick = () => { const sh = flowShuffle(flowPool); const withImg = sh.filter((x) => x.image), no = sh.filter((x) => !x.image); return flowShuffle([...withImg.slice(0, 28), ...no.slice(0, 28), ...withImg.slice(28), ...no.slice(28)].slice(0, 56)); };
 const flowRot = { ax: 0.4, ay: 0, vx: 0, vy: 0, drag: false };
 const FLOW_AUTO = 0.11; // ふだんの回転（ラジアン/秒）。約57秒で一周
+// ジャンルごとのネオンの色（色相）
+const GENRE_HUE = { politics: 215, economy: 45, finance: 50, car: 20, suv: 20, cosme: 330, national: 190, world: 170, sports: 130, entertainment: 320, it: 195, science: 260, life: 90, gourmet: 25, health: 150, travel: 175, game: 275, watch: 40 };
+const flowHue = (it) => GENRE_HUE[it.genre] ?? 200;
+function flowStyle(el, it) {
+  const h = flowHue(it);
+  el.style.color = `hsl(${h},100%,80%)`;
+  el.style.textShadow = `0 0 5px hsla(${h},100%,60%,.95), 0 0 14px hsla(${h},100%,55%,.55)`;
+}
 async function startFlow() {
   const box = $("flow");
   box.hidden = false;
@@ -357,32 +368,109 @@ async function startFlow() {
 }
 function stopFlow() { flowEls = []; $("flow").hidden = true; document.body.classList.remove("flowing"); cancelAnimationFrame(flowRaf); flowRaf = 0; }
 function buildFlow() {
-  const box = $("flow");
+  const sp = $("flowsp");
   const n = flowItems.length;
-  let html = '<button type="button" class="fclose">✕ 戻る</button>';
-  flowPts = []; flowW = []; flowOp = []; flowRep = [];
-  const maxc = flowMaxc = box.clientWidth < 600 ? 14 : 24; // 狭い画面では短く切る
+  let html = "";
+  flowPts = []; flowW = []; flowOp = []; flowRep = []; flowFeat = -1;
+  $("flowfeat").hidden = true;
+  const maxc = flowMaxc = $("flow").clientWidth < 600 ? 14 : 24; // 狭い画面では短く切る
   flowItems.forEach((it, i) => {
     // 球面にほぼ均等に並べる（フィボナッチ螺旋）
     const y = n > 1 ? 1 - (2 * (i + 0.5)) / n : 0;
     const r = Math.sqrt(1 - y * y), th = i * 2.399963;
     flowPts.push([Math.cos(th) * r, y, Math.sin(th) * r]);
     const t = it.title.length > maxc ? it.title.slice(0, maxc - 1) + "…" : it.title;
-    html += `<button type="button" class="sp" data-i="${i}" style="color:hsl(${Math.round(200 + (i * 150) / Math.max(1, n - 1))},85%,78%)">${esc(t)}</button>`;
+    html += `<button type="button" class="sp" data-i="${i}">${esc(t)}</button>`;
   });
-  box.innerHTML = html;
-  flowEls = [...box.querySelectorAll(".sp")];
+  sp.innerHTML = html;
+  flowEls = [...sp.querySelectorAll(".sp")];
+  flowEls.forEach((el, i) => flowStyle(el, flowItems[i]));
 }
 // 後ろに回って見えなくなったタイトルを、いま出ていない別のニュースに差し替える
 function flowSwap(i) {
   const shown = new Set(flowItems.map((x) => x.link));
-  const cand = flowPool.filter((x) => !shown.has(x.link));
+  let cand = flowPool.filter((x) => !shown.has(x.link));
   if (!cand.length) return;
+  const ci = cand.filter((x) => x.image);
+  if (ci.length && Math.random() < 0.5) cand = ci; // 半分は画像つき
   const it = cand[Math.floor(Math.random() * cand.length)];
   flowItems[i] = it;
   const el = flowEls[i];
   el.textContent = it.title.length > flowMaxc ? it.title.slice(0, flowMaxc - 1) + "…" : it.title;
+  flowStyle(el, it);
   flowW[i] = 0; // 幅を測り直す
+  if (flowFeat === i) flowFeat = -1;
+}
+// 時計（待機画面用）。秒が変わるたびに更新
+function flowClock() {
+  const d = new Date();
+  const key = `${d.getHours()}:${d.getMinutes()}`;
+  if (key === flowClockKey) return;
+  flowClockKey = key;
+  const w = "日月火水木金土"[d.getDay()];
+  $("flowclock").innerHTML = `<b>${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</b><span>${d.getMonth() + 1}月${d.getDate()}日（${w}）</span>`;
+}
+// 背景: 星空・地球の大気の光・緯線と経線・ときどき流れ星
+function flowDraw(cv, W, H, Rx, Ry, ca, sa, cb, sb, t) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); flowStars = []; }
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  if (!flowStars.length) for (let i = 0; i < 150; i++) flowStars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.3 + 0.3, p: Math.random() * 6.28, s: 0.6 + Math.random() * 1.8 });
+  for (const s of flowStars) {
+    g.globalAlpha = 0.25 + 0.75 * Math.abs(Math.sin(t * s.s + s.p));
+    g.fillStyle = "#dbe8ff";
+    g.beginPath(); g.arc(s.x, s.y, s.r, 0, 6.2832); g.fill();
+  }
+  g.globalAlpha = 1;
+  // 流れ星
+  if (!flowShoot && t > flowShootAt) { flowShoot = { x: Math.random() * W * 0.7, y: Math.random() * H * 0.4, t0: t }; flowShootAt = t + 5 + Math.random() * 7; }
+  if (flowShoot) {
+    const k = (t - flowShoot.t0) / 0.9;
+    if (k >= 1) flowShoot = null;
+    else {
+      const x = flowShoot.x + k * W * 0.3, y = flowShoot.y + k * H * 0.22;
+      const gr = g.createLinearGradient(x, y, x - W * 0.09, y - H * 0.066);
+      gr.addColorStop(0, `rgba(255,255,255,${1 - k})`); gr.addColorStop(1, "rgba(255,255,255,0)");
+      g.strokeStyle = gr; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x - W * 0.09, y - H * 0.066); g.stroke();
+    }
+  }
+  // 大気の光
+  g.save();
+  g.translate(W / 2, H / 2); g.scale(Rx, Ry);
+  const atm = g.createRadialGradient(0, 0, 0.7, 0, 0, 1.3);
+  atm.addColorStop(0, "rgba(40,110,255,0.10)"); atm.addColorStop(0.62, "rgba(70,150,255,0.28)"); atm.addColorStop(0.78, "rgba(120,200,255,0.12)"); atm.addColorStop(1, "rgba(80,160,255,0)");
+  g.fillStyle = atm; g.beginPath(); g.arc(0, 0, 1.3, 0, 6.2832); g.fill();
+  g.restore();
+  // 緯線・経線（手前の半球だけ）
+  const proj = (x, y, z) => { const y1 = y * ca - z * sa, z1 = y * sa + z * ca; return [x * cb + z1 * sb, -y1, -x * sb + z1 * cb]; };
+  g.lineWidth = 1;
+  const seg = (pts) => {
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      if (a[2] <= 0 || b[2] <= 0) continue;
+      g.globalAlpha = 0.07 + 0.3 * ((a[2] + b[2]) / 2);
+      g.strokeStyle = "#7fc3ff";
+      g.beginPath(); g.moveTo(W / 2 + a[0] * Rx, H / 2 + a[1] * Ry); g.lineTo(W / 2 + b[0] * Rx, H / 2 + b[1] * Ry); g.stroke();
+    }
+  };
+  for (let lat = -60; lat <= 60; lat += 30) {
+    const f = lat * 0.017453, pts = [];
+    for (let lon = 0; lon <= 360; lon += 6) { const l = lon * 0.017453; pts.push(proj(Math.cos(f) * Math.cos(l), Math.sin(f), Math.cos(f) * Math.sin(l))); }
+    seg(pts);
+  }
+  for (let lon = 0; lon < 360; lon += 30) {
+    const l = lon * 0.017453, pts = [];
+    for (let lat = -90; lat <= 90; lat += 6) { const f = lat * 0.017453; pts.push(proj(Math.cos(f) * Math.cos(l), Math.sin(f), Math.cos(f) * Math.sin(l))); }
+    seg(pts);
+  }
+  // 輪郭の光
+  g.globalAlpha = 0.55;
+  g.strokeStyle = "#9fd4ff"; g.lineWidth = 1.5; g.shadowColor = "#4aa8ff"; g.shadowBlur = 18;
+  g.beginPath(); g.ellipse(W / 2, H / 2, Rx, Ry, 0, 0, 6.2832); g.stroke();
+  g.shadowBlur = 0; g.globalAlpha = 1;
 }
 function runFlow() {
   if (flowRaf || tab !== "flow") return;
@@ -402,6 +490,8 @@ function runFlow() {
     const box = $("flow"), W = box.clientWidth, H = box.clientHeight;
     const Rx = W * 0.3, Ry = H * 0.36, base = Math.max(13, Math.min(20, H * 0.026));
     const ca = Math.cos(R.ax), sa = Math.sin(R.ax), cb = Math.cos(R.ay), sb = Math.sin(R.ay);
+    flowDraw($("flowcv"), W, H, Rx, Ry, ca, sa, cb, sb, now / 1000);
+    flowClock();
     // 1) 各タイトルの位置を計算
     const pr = [];
     for (let i = 0; i < flowEls.length; i++) {
@@ -417,15 +507,41 @@ function runFlow() {
       if (sy > 0.35) op *= Math.max(0, 1 - (sy - 0.35) / 0.45); // 下に回ったら消える
       pr.push({ i, z: z2, x: x2 * Rx + W / 2, y: sy * Ry + H / 2, d, op, sc: 0.42 + 1.2 * d * d });
     }
-    // 2) 手前のものから順に、すでに出ているタイトルと大きく重なるものは薄くして消す（ぎゅっと重ならないように）
+    // 2) 正面（球の中心に近い手前）の、画像つきの記事を1本選んで、カードにする
+    const dist = (q) => Math.hypot((q.x - W / 2) / Rx, (q.y - H / 2) / Ry);
+    const okFeat = (q) => q.z > 0.5 && (flowOp[q.i] ?? 0) > 0.5 && flowItems[q.i].image && !flowBad.has(flowItems[q.i].image);
+    let best = null;
+    for (const q of pr) if (okFeat(q) && (!best || q.z - 0.7 * dist(q) > best.z - 0.7 * dist(best))) best = q;
+    const curQ = flowFeat >= 0 ? pr[flowFeat] : null;
+    if (best && (!curQ || !okFeat(curQ) || (best.i !== flowFeat && best.z - 0.7 * dist(best) > curQ.z - 0.7 * dist(curQ) + 0.2))) flowFeat = best.i;
+    else if (curQ && !okFeat(curQ)) flowFeat = -1;
+    const ff = $("flowfeat");
+    const fq = flowFeat >= 0 ? pr[flowFeat] : null;
+    if (fq) {
+      const it = flowItems[flowFeat];
+      if (ff.dataset.link !== it.link) {
+        ff.dataset.link = it.link; ff.dataset.i = String(flowFeat);
+        const h = flowHue(it);
+        ff.style.setProperty("--h", String(h));
+        ff.innerHTML = `<img src="${esc(it.image)}" alt="" referrerpolicy="no-referrer" onerror="flowBad.add(this.src);this.closest('.ff').hidden=true"><span class="fg">${esc(genres[it.genre]?.label || "")}</span><b>${esc(it.title)}</b>`;
+        ff.classList.remove("in"); void ff.offsetWidth; ff.classList.add("in");
+      }
+      ff.dataset.i = String(flowFeat);
+      ff.hidden = false;
+      ff.style.transform = `translate(-50%,-50%) translate(${fq.x.toFixed(1)}px,${fq.y.toFixed(1)}px) scale(${Math.min(fq.sc * 0.95, 1.2).toFixed(3)})`; // 大きくなりすぎてスマホの画面からはみ出さないように上限
+      ff.style.opacity = Math.min(1, (flowOp[flowFeat] ?? 0) + 0.2).toFixed(3);
+    } else { ff.hidden = true; ff.dataset.link = ""; }
+    // 3) 手前のものから順に、すでに出ているタイトルと大きく重なるものは薄くして消す（ぎゅっと重ならないように）
     const order = pr.slice().sort((p, q) => q.d - p.d);
     const placed = [];
+    if (fq) { const fk = Math.min(fq.sc * 0.95, 1.2), w = 230 * fk, h = 170 * fk; placed.push({ x0: fq.x - w / 2, x1: fq.x + w / 2, y0: fq.y - h / 2, y1: fq.y + h / 2, a: w * h }); }
     for (const q of order) {
       const el = flowEls[q.i];
       if (!flowW[q.i]) flowW[q.i] = el.offsetWidth || 200;
       const w = flowW[q.i] * q.sc, h = base * 1.5 * q.sc;
       let target = q.op;
-      if (target > 0.25) {
+      if (fq && q.i === flowFeat) target = 0; // カードになったものは、元のタイトルを消す
+      else if (target > 0.25) {
         const bx0 = q.x - w / 2, bx1 = q.x + w / 2, by0 = q.y - h / 2, by1 = q.y + h / 2;
         for (const o of placed) {
           const ox = Math.min(bx1, o.x1) - Math.max(bx0, o.x0), oy = Math.min(by1, o.y1) - Math.max(by0, o.y0);
@@ -452,7 +568,7 @@ function runFlow() {
   let sx = 0, sy = 0, lx = 0, ly = 0, lt = 0, moved = 0, downEl = null;
   box.addEventListener("pointerdown", (e) => {
     if (e.target.closest(".fclose")) return;
-    flowRot.drag = true; moved = 0; downEl = e.target.closest(".sp");
+    flowRot.drag = true; moved = 0; downEl = e.target.closest(".sp, .ff");
     sx = lx = e.clientX; sy = ly = e.clientY; lt = performance.now();
     try { box.setPointerCapture(e.pointerId); } catch {}
   });
