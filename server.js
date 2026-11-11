@@ -15,7 +15,7 @@ const GENRES = {
   economy: { label: "経済" },
   finance: { label: "金融" },
   car: { label: "車" },
-  suv: { label: "小型SUV" }, // 特集: 全長4,600mm以下のコンパクトSUV
+  suv: { label: "小型SUV・バン" }, // 特集: 全長4,600mm以下のコンパクトSUV・バン
   cosme: { label: "コスメ" },
   national: { label: "国内" },
   world: { label: "国際" },
@@ -602,7 +602,7 @@ async function getInsider() {
 const JP_MAKERS = ["トヨタ", "日産", "ホンダ", "マツダ", "スバル", "スズキ", "ダイハツ", "三菱", "レクサス", "いすゞ", "光岡", "日野", "ミツオカ"];
 let usedCarCache = { at: 0, data: null };
 async function fetchUsedCarRanking() {
-  const pages = ["https://www.carsensor.net/ranking/index.html", ...Array.from({ length: 24 }, (_, i) => `https://www.carsensor.net/ranking/pop/index${i + 2}.html`)];
+  const pages = ["https://www.carsensor.net/ranking/index.html", ...Array.from({ length: 44 }, (_, i) => `https://www.carsensor.net/ranking/pop/index${i + 2}.html`)];
   const rows = [];
   for (const u of pages) {
     try {
@@ -637,7 +637,9 @@ let suvUsedCache = { at: 0, data: [] };
 async function getSuvUsed() {
   if (suvUsedCache.data.length && Date.now() - suvUsedCache.at < 12 * 60 * 60 * 1000) return suvUsedCache.data;
   const used = await getUsedCar().catch(() => null);
-  const targets = ((used && used.all) || []).filter((r) => SUV_MODEL_RE.test(r.name)).slice(0, 20);
+  const all = ((used && used.all) || []).filter((r) => SUV_MODEL_RE.test(r.name));
+  const isJp = (n) => JP_MAKERS.some((mk) => n.startsWith(mk));
+  const targets = [...all.filter((r) => isJp(r.name)).slice(0, 18), ...all.filter((r) => !isJp(r.name)).slice(0, 12)]; // 国産18・外車12（6枠×3段と6枠×2段）
   const out = [];
   let next = 0;
   await Promise.all(Array.from({ length: 3 }, async () => {

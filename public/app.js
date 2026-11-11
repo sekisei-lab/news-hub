@@ -233,8 +233,8 @@ async function loadSuv() {
     if (tab !== "suv") return;
     suvList = d.used || [];
     if (!suvList.length) { box.hidden = true; suvAt = 0; return; }
-    const chip = (c) => { const m = makerOf(c.name); return `<button type="button" class="sc" data-i="${suvList.indexOf(c)}" title="${esc(c.name)}"><span class="scn">${c.rank}位 ${makerMark(m)}${esc(m ? c.name.slice(m.jp.length).trim() : c.name)}</span><b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b></button>`; };
-    const grp = (label, list) => list.length ? `<div class="sg"><span class="sl">${label}</span>${list.map(chip).join("")}</div>` : "";
+    const chip = (c) => { const m = makerOf(c.name); return `<button type="button" class="sc" data-i="${suvList.indexOf(c)}" title="${esc(c.name)}"><span class="sr">${c.rank}位</span><span class="scn">${makerMark(m)}<span class="sn">${esc(m ? c.name.slice(m.jp.length).trim() : c.name)}</span></span><b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b></button>`; };
+    const grp = (label, list) => list.length ? `<div class="sg"><span class="sl">${label}</span><div class="sgrid">${list.map(chip).join("")}</div></div>` : "";
     box.innerHTML = `<div class="st">全長4,600mm以下・現行型の中古平均価格（カーセンサー）<small>車種をタップすると画像が見られます</small></div>${grp("国産", suvList.filter((c) => !c.imp))}${grp("外車", suvList.filter((c) => c.imp))}`;
     box.hidden = false;
   } catch { suvAt = 0; }
@@ -242,7 +242,7 @@ async function loadSuv() {
 // メーカー名 → ロゴ（Simple Icons のSVGを logos/ に置いて配信）。ロゴがないメーカーは、短い文字のバッジにする
 const MAKERS = [
   ["トヨタ", "toyota", "EB0A1E"], ["ホンダ", "honda", "E40521"], ["スズキ", "suzuki", "E30613"], ["マツダ", "mazda", "101010"], ["三菱", "mitsubishi", "E60012"], ["日産", "nissan", "C3002F"], ["スバル", "subaru", "013C74"], ["ダイハツ", "", ""], ["レクサス", "", ""],
-  ["ミニ", "mini", "000000"], ["ボルボ", "volvo", "003057"], ["ジープ", "jeep", "000000"], ["メルセデス・ベンツ", "mercedes", "242424"], ["フォルクスワーゲン", "volkswagen", "151F5D"], ["BMW", "bmw", "0066B1"], ["アウディ", "audi", "BB0A30"],
+  ["ミニ", "mini", "000000"], ["ボルボ", "volvo", "003057"], ["ジープ", "jeep", "000000"], ["メルセデス・ベンツ", "mercedes", "242424"], ["メルセデス", "mercedes", "242424"], ["フォルクスワーゲン", "volkswagen", "151F5D"], ["BMW", "bmw", "0066B1"], ["ＢＭＷ", "bmw", "0066B1"], ["アウディ", "audi", "BB0A30"],
   ["プジョー", "peugeot", "000000"], ["ルノー", "renault", "FFCC33"], ["フィアット", "fiat", "941711"], ["アバルト", "", ""], ["ヒョンデ", "hyundai", "002C5E"], ["ランドローバー", "landrover", "005A2B"], ["シトロエン", "citroen", "DA291C"], ["アルファロメオ", "alfaromeo", "981E32"], ["BYD", "", ""],
 ].map(([jp, slug, hex]) => ({ jp, slug, hex }));
 const makerOf = (name) => MAKERS.find((m) => name.startsWith(m.jp));

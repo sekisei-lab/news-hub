@@ -259,3 +259,16 @@ body.flowing { overflow: hidden; }
 :root[data-theme="dark"] .lg.dk { background: #e8eaed; }
 .lgt { display: inline-block; font-size: 10px; font-weight: 700; line-height: 1; padding: 3px 5px; margin-right: 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--sub); vertical-align: 1px; }
 .svc h3 .lgt { font-size: 11px; margin-right: 8px; }
+
+/* 小型SUV: 1行6枠の固定グリッド（狭い画面は3枠） */
+.suvpanel .sg { display: block; margin-bottom: 10px; }
+.suvpanel .sl { display: block; width: auto; margin-bottom: 4px; }
+.suvpanel .sgrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.suvpanel .sc { width: 100%; min-width: 0; gap: 2px; padding: 7px 9px; }
+.suvpanel .sr { font-size: 11px; color: var(--sub); }
+.suvpanel .scn { display: flex; align-items: center; max-width: 100%; font-weight: 700; font-size: 13px; }
+.suvpanel .sn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.suvpanel .scn .lg { flex: none; }
+.suvpanel .scn .lgt { flex: none; }
+.suvpanel .pr { font-size: 12px; }
+@media (max-width: 760px) { .suvpanel .sgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
