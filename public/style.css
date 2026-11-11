@@ -253,9 +253,9 @@ body.flowing { overflow: hidden; }
 .svl { display: inline-block; padding: 8px 14px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; }
 
 /* 小型SUV: メーカーのロゴ（ロゴがないメーカーは文字のバッジ） */
-.lg { width: 18px; height: 18px; vertical-align: -4px; margin-right: 5px; object-fit: contain; }
-.lgt { display: inline-block; font-size: 10px; font-weight: 700; line-height: 1; padding: 3px 5px; margin-right: 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--sub); vertical-align: 1px; }
+.lg { display: inline-block; width: 18px; height: 18px; vertical-align: -4px; margin-right: 5px; background: var(--c, #000); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
 .svc h3 .lg { width: 24px; height: 24px; vertical-align: -5px; margin-right: 8px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lg.dk { background: #e8eaed; } }
+:root[data-theme="dark"] .lg.dk { background: #e8eaed; }
+.lgt { display: inline-block; font-size: 10px; font-weight: 700; line-height: 1; padding: 3px 5px; margin-right: 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--sub); vertical-align: 1px; }
 .svc h3 .lgt { font-size: 11px; margin-right: 8px; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lg { filter: invert(1); } }
-:root[data-theme="dark"] .lg { filter: invert(1); }
