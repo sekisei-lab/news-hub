@@ -181,4 +181,18 @@ FEEDS.push(
   MORE("science", "sorae", "sorae_jp"), MORE("science", "ナショジオ", "nknatiogeo"), MORE("science", "共同通信", "kyodonews", SCIENCE_KW), { genre: "science", source: "朝日新聞", url: asahiAll, filter: SCIENCE_KW },
 );
 
+// ---------- Australia（英語ジャンル。全ジャンル横断の「すべて」には混ぜない）----------
+const ABC = (id) => `https://www.abc.net.au/news/feed/${id}/rss.xml`;
+[
+  ["ABC News", ABC(51120)], ["ABC News", ABC(1534)], ["ABC News", ABC(45910)], ["ABC News", ABC(51892)], ["ABC News", ABC(45924)],
+  ["SBS News", "https://www.sbs.com.au/news/feed"], ["SBS News", "https://www.sbs.com.au/news/topic/australia/feed"],
+  ["The Guardian Australia", "https://www.theguardian.com/australia-news/rss"],
+  ["The Guardian Australia", "https://www.theguardian.com/australia-news/australian-politics/rss"],
+  ["The Sydney Morning Herald", "https://www.smh.com.au/rss/feed.xml"],
+  ["The Age", "https://www.theage.com.au/rss/feed.xml"],
+  ["Brisbane Times", "https://www.brisbanetimes.com.au/rss/feed.xml"],
+  ["WAtoday", "https://www.watoday.com.au/rss/feed.xml"],
+  ["The Canberra Times", "https://www.canberratimes.com.au/rss.xml"],
+].forEach(([source, url]) => FEEDS.push({ genre: "australia", source, url }));
+
 module.exports = { FEEDS, SUV_MODEL_RE };

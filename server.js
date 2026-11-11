@@ -27,6 +27,7 @@ const GENRES = {
   gourmet: { label: "グルメ" },
   health: { label: "健康" },
   travel: { label: "旅行" },
+  australia: { label: "Australia", en: true }, // 英語ジャンル（ラベルも記事も英語）
   game: { label: "ゲーム" },
 };
 
@@ -546,7 +547,7 @@ async function getHot(genre) {
   const hit = hotCache.get(genre);
   if (hit && Date.now() - hit.at < 3 * 60 * 1000) return hit.items;
   const since = Date.now() - 36 * 60 * 60 * 1000;
-  let list = mergedList().filter((i) => (genre === "all" || i.genres.includes(genre)) && i.time >= since);
+  let list = mergedList().filter((i) => (genre === "all" ? i.genres.some((g) => !GENRES[g]?.en) : i.genres.includes(genre)) && i.time >= since);
   const out = [];
   const used = new Set();
   const take = (it, reason) => { if (out.length < 3 && !used.has(it.link)) { out.push({ ...it, reason }); used.add(it.link); } };
@@ -719,7 +720,7 @@ const server = http.createServer(async (req, res) => {
     const cached = apiCache.get(etag);
     if (cached) return sendApi(req, res, cached, etag);
     let list = mergedList();
-    if (genre !== "all") list = list.filter((i) => i.genres.includes(genre));
+    list = genre === "all" ? list.filter((i) => i.genres.some((g) => !GENRES[g]?.en)) : list.filter((i) => i.genres.includes(genre));
     if (q.length) list = list.filter((i) => { const t = (i.title + " " + i.summary).toLowerCase(); return q.some((k) => t.includes(k)); });
     const body = Buffer.from(JSON.stringify({ updatedAt: store.updatedAt, genres: GENRES, total: list.length, offset, items: list.slice(offset, offset + limit) }));
     if (apiCacheAt !== store.updatedAt) { apiCache.clear(); apiCacheAt = store.updatedAt; } // 更新されたら作り直す

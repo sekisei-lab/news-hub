@@ -12,7 +12,7 @@ let prefs = store.get("newshub.prefs", { order: [], hidden: [], custom: [], dele
 if (!isNewVisitor && prefs.init === undefined) prefs.init = true; // 以前から使っている人の設定は変えない
 prefs.deleted ||= [];
 // 初期表示のタブ（それ以外は設定でONにすると出る）
-const DEFAULT_TABS = ["national", "world", "politics", "economy", "finance", "it", "car", "suv", "cosme", "flow"];
+const DEFAULT_TABS = ["national", "world", "politics", "economy", "finance", "it", "car", "suv", "cosme", "australia", "flow"];
 function applyDefaultTabs() {
   if (prefs.init || !Object.keys(genres).length) return;
   prefs.hidden = Object.keys(genres).filter((id) => !DEFAULT_TABS.includes(id));
@@ -26,8 +26,9 @@ let updatedAt = 0;
 const savePrefs = () => store.set("newshub.prefs", prefs);
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-function ago(t) {
+function ago(t, en) {
   if (!t) return "";
+  if (en) { const m = Math.max(0, Math.floor((Date.now() - t) / 60000)); return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / 1440)}d ago`; }
   const m = Math.max(0, Math.floor((Date.now() - t) / 60000));
   if (m < 1) return "たった今";
   if (m < 60) return `${m}分前`;
@@ -89,7 +90,7 @@ const cardHtml = (i, n) => `<div class="cell"><a class="card${readSet.has(i.link
         ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.classList.add('ld')" onerror="retryImg(this)">` : ""}
         <h2>${esc(i.title)}</h2>
         <p>${esc(i.summary || "")}</p>
-        <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time)}</span></div>
+        <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time, genres[i.genre]?.en)}</span></div>
       </a></div>`;
 // 段組み（カードを一番低い列へ積む。順番は上から下へおおむね新しい順）
 let colCount = 0;
@@ -910,7 +911,7 @@ let readerToken = 0;
 function openReader(item) {
   const token = ++readerToken;
   $("rTitle").textContent = item.title;
-  $("rMeta").innerHTML = `<span class="tag">${esc(genres[item.genre]?.label || "")}</span><span>${esc(item.source)}</span><span>${ago(item.time)}</span>`;
+  $("rMeta").innerHTML = `<span class="tag">${esc(genres[item.genre]?.label || "")}</span><span>${esc(item.source)}</span><span>${ago(item.time, genres[item.genre]?.en)}</span>`;
   $("rOrig2").href = item.link;
   const img = $("rImg");
   img.hidden = !item.image;
