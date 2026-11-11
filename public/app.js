@@ -241,15 +241,15 @@ async function loadSuv() {
 }
 // メーカー名 → ロゴ（Simple Icons のSVGを logos/ に置いて配信）。ロゴがないメーカーは、短い文字のバッジにする
 const MAKERS = [
-  ["トヨタ", "toyota", "EB0A1E"], ["ホンダ", "honda", "E40521"], ["スズキ", "suzuki", "E30613"], ["マツダ", "mazda", "101010"], ["三菱", "mitsubishi", "E60012"], ["日産", "nissan", "C3002F"], ["スバル", "subaru", "013C74"], ["ダイハツ", "", ""], ["レクサス", "", ""],
+  ["トヨタ", "toyota", "EB0A1E"], ["ホンダ", "honda", "E40521"], ["スズキ", "suzuki", "E30613"], ["マツダ", "mazda", "101010"], ["三菱", "mitsubishi", "E60012"], ["日産", "nissan", "C3002F"], ["スバル", "subaru", "013C74"], ["ダイハツ", "daihatsu", "E60012", "wide"], ["レクサス", "", ""],
   ["ミニ", "mini", "000000"], ["ボルボ", "volvo", "003057"], ["ジープ", "jeep", "000000"], ["メルセデス・ベンツ", "mercedes", "242424"], ["メルセデス", "mercedes", "242424"], ["フォルクスワーゲン", "volkswagen", "151F5D"], ["BMW", "bmw", "0066B1"], ["ＢＭＷ", "bmw", "0066B1"], ["アウディ", "audi", "BB0A30"],
   ["プジョー", "peugeot", "000000"], ["ルノー", "renault", "FFCC33"], ["フィアット", "fiat", "941711"], ["アバルト", "", ""], ["ヒョンデ", "hyundai", "002C5E"], ["ランドローバー", "landrover", "005A2B"], ["シトロエン", "citroen", "DA291C"], ["アルファロメオ", "alfaromeo", "981E32"], ["BYD", "", ""],
-].map(([jp, slug, hex]) => ({ jp, slug, hex }));
+].map(([jp, slug, hex, wide]) => ({ jp, slug, hex, wide }));
 const makerOf = (name) => MAKERS.find((m) => name.startsWith(m.jp));
 // ロゴはSVGを型紙にして、メーカーの色で塗る。黒に近い色は、暗い画面では明るい灰色にする
 const lumOf = (hex) => { const n = parseInt(hex, 16); return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
 const makerMark = (m) => !m ? "" : m.slug
-  ? `<span class="lg${lumOf(m.hex) < 0.3 ? " dk" : ""}" role="img" aria-label="${esc(m.jp)}" style="--c:#${m.hex};--m:url(logos/${m.slug}.svg)"></span>`
+  ? `<span class="lg${lumOf(m.hex) < 0.3 ? " dk" : ""}${m.wide ? " wide" : ""}" role="img" aria-label="${esc(m.jp)}" style="--c:#${m.hex};--m:url(logos/${m.slug}.svg)"></span>`
   : `<span class="lgt">${esc(m.jp)}</span>`;
 function openSuv(c) {
   const v = $("suvview");

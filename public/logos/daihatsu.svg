@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="132.29167mm"
+   height="50.675816mm"
+   viewBox="0 0 132.29167 50.675816"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4 (86a8ad7, 2024-10-11)"
+   sodipodi:docname="Daihatsu_symbol.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.3950758"
+     inkscape:cx="211.45805"
+     inkscape:cy="107.16264"
+     inkscape:window-width="1920"
+     inkscape:window-height="1001"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-95.435212,-102.02515)">
+    <path
+       class="st1"
+       d="m 217.49104,113.04788 c -12.21418,-3.89936 -18.95206,-4.87421 -32.80053,-6.93858 -4.98889,-0.74546 -37.15865,-3.89936 -64.4542,-4.07139 -5.33296,-0.0287 -7.79873,0 -13.67645,0 5.99241,5.9924 26.29204,26.40672 32.48515,32.59983 l 18.03456,-1.69164 c 0,0 -22.07728,-22.24932 -25.68993,-25.86195 30.07672,-0.60211 66.57591,3.81334 78.61807,7.13927 5.93505,1.63429 14.04917,3.64132 14.04917,5.9924 0,1.6343 -3.01054,2.86718 -7.45467,4.21476 -29.876,9.00294 -63.68006,11.29669 -78.04462,12.52958 -3.8707,-3.8707 -27.5536,-27.49625 -34.89357,-34.80757 -1.69164,0.0573 -3.49797,0.14336 -8.228808,0.34406 4.530136,4.53015 28.442418,28.4711 35.725058,35.75373 0.28671,0.28673 0.0287,0.54477 -0.28672,0.97485 -0.45875,0.6021 -6.07842,8.54419 -9.08897,13.47574 35.03695,-5.27561 62.70523,-11.92746 77.75791,-16.88769 10.75193,-3.5553 22.13464,-7.25396 26.55009,-11.81278 1.03219,-1.06086 1.6343,-2.58046 1.6343,-3.84202 -0.0573,-3.5553 -6.1071,-5.7917 -10.23584,-7.1106 z"
+       id="path9"
+       style="clip-rule:evenodd;fill:#e60012;fill-rule:evenodd;stroke-width:0.286718;fill-opacity:1" />
+  </g>
+</svg>
