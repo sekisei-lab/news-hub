@@ -157,7 +157,7 @@
   const NAME = { ja: "日", zh: "中", en: "EN" };
   const btn = box.querySelector("button");
   function paint() {
-    btn.textContent = "🌐 " + (lang ? NAME[lang] : "原");
+    btn.textContent = (lang ? NAME[lang] : "原");
     btn.classList.toggle("on", !!lang);
     btn.title = "翻訳の切り替え（原文 → " + seq().slice(1).map((l) => NAME[l]).join(" → ") + "）";
   }
