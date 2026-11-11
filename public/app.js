@@ -354,6 +354,7 @@ function flowStyle(el, it) {
 async function startFlow() {
   const box = $("flow");
   box.hidden = false;
+  $("ffull").hidden = !fsCan();
   document.body.classList.add("flowing");
   if (flowEls.length && Date.now() - flowAt < 3 * 60 * 1000) { runFlow(); return; }
   if (flowPool.length && Date.now() - flowAt < 3 * 60 * 1000) { flowItems = flowPick(); buildFlow(); runFlow(); return; } // 戻ってくるたびに、選び直す
@@ -367,7 +368,22 @@ async function startFlow() {
     runFlow();
   } catch { flowAt = 0; }
 }
-function stopFlow() { flowEls = []; $("flow").hidden = true; document.body.classList.remove("flowing"); cancelAnimationFrame(flowRaf); flowRaf = 0; }
+// 全画面（PCとAndroid。iPhoneのSafariは、ページのボタンでは全画面にできない）
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+const fsCan = () => !!($("flow").requestFullscreen || $("flow").webkitRequestFullscreen) && (document.fullscreenEnabled !== false);
+function fsToggle() {
+  const box = $("flow");
+  try {
+    if (fsEl()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+    else { const p = (box.requestFullscreen || box.webkitRequestFullscreen).call(box, { navigationUI: "hide" }); if (p && p.catch) p.catch(() => {}); }
+  } catch {}
+}
+function fsLeave() { try { if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch {} }
+function fsSync() { const b = $("ffull"); if (b) b.classList.toggle("on", !!fsEl()); }
+document.addEventListener("fullscreenchange", fsSync);
+document.addEventListener("webkitfullscreenchange", fsSync);
+$("ffull").addEventListener("click", (e) => { e.stopPropagation(); fsToggle(); });
+function stopFlow() { fsLeave(); flowEls = []; $("flow").hidden = true; document.body.classList.remove("flowing"); cancelAnimationFrame(flowRaf); flowRaf = 0; }
 // 球の半径（真円）と文字の大きさ。どの画面でも、短い辺に合わせる
 const flowRadius = (W, H) => Math.min(W, H) * 0.42;
 const flowBase = (R) => Math.max(12.5, Math.min(21, R * 0.055));
@@ -433,11 +449,13 @@ function leaveFlow() {
   }
   box.classList.add("leaving"); // 地球がすっと沈む
   btn.classList.add("go");
-  setTimeout(() => { fade.classList.add("on"); }, 550); // 画面が暗くなる
+  setTimeout(() => { fade.classList.add("on"); $("flowfade2").classList.add("on"); }, 550); // 画面が暗くなる（全画面のときは、画面の中の暗幕も使う）
+  setTimeout(fsLeave, 1300); // 全画面だったら、真っ暗になってから解除する
   setTimeout(() => {
     tab = "all"; store.set("newshub.tab", "all"); renderTabs(); load(); // 通常の画面へ（この間は真っ暗）
     box.classList.remove("leaving"); btn.classList.remove("go");
     box.querySelectorAll(".fstar").forEach((e) => e.remove()); // 残った流れ星を片づける
+    $("flowfade2").classList.remove("on");
     setTimeout(() => { fade.classList.remove("on"); flowLeaving = false; }, 120); // 暗がりから通常の画面が現れる
   }, 1500);
 }
@@ -592,7 +610,7 @@ function runFlow() {
   const box = $("flow");
   let sx = 0, sy = 0, lx = 0, ly = 0, lt = 0, moved = 0, downEl = null;
   box.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".fclose")) return;
+    if (e.target.closest(".fclose, .ffull")) return;
     flowRot.drag = true; moved = 0; downEl = e.target.closest(".sp");
     sx = lx = e.clientX; sy = ly = e.clientY; lt = performance.now();
     try { box.setPointerCapture(e.pointerId); } catch {}
