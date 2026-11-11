@@ -285,7 +285,7 @@ async function refresh() {
       if (t < cutoff || i.source === "Investing.com") archive.delete(key); // Investing.comはカードにせず、専用の帯だけで見せる
       else lists[i.genre].push({ ...i, time: t });
     }
-    for (const g in lists) lists[g] = lists[g].sort((a, b) => b.time - a.time).slice(0, MAX_PER_GENRE);
+    for (const g in lists) lists[g] = lists[g].sort((a, b) => b.time - a.time).slice(0, g === "australia" ? 900 : MAX_PER_GENRE);
     const needsDesc = (i) => !i.desc || GENERIC_DESC.test(i.desc) || i.desc === i.title;
     // キャッシュ済みの og 情報を使って組み立てる
     const build = () => {
