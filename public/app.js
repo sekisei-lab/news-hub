@@ -334,9 +334,9 @@ for (const id of ["hot", "newcar"]) {
 setInterval(() => { if (tab === "car" && !document.hidden) loadCar(); }, 60000);
 
 // ---- ニュース🌐: カードなし・ヘッダーなしの全画面。全ジャンルの記事から無作為に選んだタイトルが、光る地球の表面に並んでゆっくり回る ----
-// 手前の半球のタイトルだけが見える。ドラッグ（指でも）で好きな向きに回せる。時計つき（待機画面用）
+// 手前の半球のタイトルだけが見える。ドラッグ（指でも）で好きな向きに回せる
 let flowItems = [], flowPool = [], flowAt = 0, flowEls = [], flowPts = [], flowRaf = 0, flowW = [], flowOp = [], flowRep = [], flowMaxc = 24;
-let flowStars = [], flowShoot = null, flowShootAt = 0, flowClockKey = "";
+let flowStars = [], flowShoot = null, flowShootAt = 0;
 const flowShuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 // 全ジャンルから無作為に56件
 const flowPick = () => flowShuffle(flowPool).slice(0, 56);
@@ -368,12 +368,16 @@ async function startFlow() {
   } catch { flowAt = 0; }
 }
 function stopFlow() { flowEls = []; $("flow").hidden = true; document.body.classList.remove("flowing"); cancelAnimationFrame(flowRaf); flowRaf = 0; }
+// 球の半径（真円）と文字の大きさ。どの画面でも、短い辺に合わせる
+const flowRadius = (W, H) => Math.min(W, H) * 0.42;
+const flowBase = (R) => Math.max(12.5, Math.min(21, R * 0.055));
 function buildFlow() {
   const sp = $("flowsp");
   const n = flowItems.length;
   let html = "";
   flowPts = []; flowW = []; flowOp = []; flowRep = [];
-  const maxc = flowMaxc = $("flow").clientWidth < 600 ? 14 : 24; // 狭い画面では短く切る
+  const R0 = flowRadius($("flow").clientWidth, $("flow").clientHeight);
+  const maxc = flowMaxc = Math.max(12, Math.min(26, Math.floor((1.27 * R0) / flowBase(R0)))); // 球に収まる長さで切る
   flowItems.forEach((it, i) => {
     // 球面にほぼ均等に並べる（フィボナッチ螺旋）
     const y = n > 1 ? 1 - (2 * (i + 0.5)) / n : 0;
@@ -432,15 +436,6 @@ function flowSwap(i) {
   el.textContent = it.title.length > flowMaxc ? it.title.slice(0, flowMaxc - 1) + "…" : it.title;
   flowStyle(el, it);
   flowW[i] = 0; // 幅を測り直す
-}
-// 時計（待機画面用）。秒が変わるたびに更新
-function flowClock() {
-  const d = new Date();
-  const key = `${d.getHours()}:${d.getMinutes()}`;
-  if (key === flowClockKey) return;
-  flowClockKey = key;
-  const w = "日月火水木金土"[d.getDay()];
-  $("flowclock").innerHTML = `<b>${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</b><span>${d.getMonth() + 1}月${d.getDate()}日（${w}）</span>`;
 }
 // 背景: 星空・地球の大気の光・緯線と経線・ときどき流れ星
 function flowDraw(cv, W, H, Rx, Ry, ca, sa, cb, sb, t) {
@@ -520,14 +515,11 @@ function runFlow() {
       R.ay += R.vy * dt;
     }
     const box = $("flow"), W = box.clientWidth, H = box.clientHeight;
-    // 横長の画面は横に広い楕円（長いタイトルが入るように）、縦長のスマホは真円にする
-    const portrait = W < H;
-    const Rx = portrait ? Math.min(W * 0.4, H * 0.34) : W * 0.3, Ry = portrait ? Rx : H * 0.36;
+    const Rx = flowRadius(W, H), Ry = Rx;
     flowGeo.rx = Rx; flowGeo.ry = Ry;
-    const base = portrait ? Math.max(13, Math.min(17, W * 0.042)) : Math.max(13, Math.min(20, H * 0.026));
+    const base = flowBase(Rx);
     const ca = Math.cos(R.ax), sa = Math.sin(R.ax), cb = Math.cos(R.ay), sb = Math.sin(R.ay);
     flowDraw($("flowcv"), W, H, Rx, Ry, ca, sa, cb, sb, now / 1000);
-    flowClock();
     // 1) 各タイトルの位置を計算
     const pr = [];
     for (let i = 0; i < flowEls.length; i++) {
@@ -541,9 +533,9 @@ function runFlow() {
       else if (z2 > 0.2) flowRep[i] = false;
       let op = Math.max(0, Math.min(1, (z2 - 0.05) / 0.35)); // 手前の半球（z>0）だけ見せる。奥の半球は完全に消す（マウスと逆向きに動いて見えるのを防ぐ）
       if (sy > 0.35) op *= Math.max(0, 1 - (sy - 0.35) / 0.45); // 下に回ったら消える
-      const sc = portrait ? 0.55 + 0.75 * d * d : 0.42 + 1.2 * d * d;
+      const sc = 0.5 + 0.95 * d * d;
       let px = x2 * Rx + W / 2;
-      if (portrait) { const hw = ((flowW[i] || 160) * sc) / 2 + 6; px = Math.max(hw, Math.min(W - hw, px)); } // スマホでは、タイトルが画面の外に出ないようにする
+      { const hw = ((flowW[i] || 160) * sc) / 2 + 6; px = Math.max(hw, Math.min(W - hw, px)); } // タイトルが画面の外に出ないようにする
       pr.push({ i, z: z2, x: px, y: sy * Ry + H / 2, d, op, sc });
     }
     // 2) 手前のものから順に、すでに出ているタイトルと大きく重なるものは薄くして消す（ぎゅっと重ならないように）
@@ -575,6 +567,10 @@ function runFlow() {
     flowRaf = requestAnimationFrame(frame);
   };
   flowRaf = requestAnimationFrame((t) => { last = t; frame(t); });
+}
+{
+  let rz = 0;
+  addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (tab === "flow" && flowItems.length && flowEls.length) buildFlow(); }, 250); });
 }
 {
   const box = $("flow");
