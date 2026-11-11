@@ -222,25 +222,34 @@ async function loadHot() {
   } catch { hotAt = 0; }
 }
 // ---- 特集タブ（小型SUV）: 中古車の人気ランキングのうち、全長4,600mm以下のSUVだけを一行で見せる ----
-let suvAt = 0;
+let suvAt = 0, suvList = [];
 async function loadSuv() {
-  const box = $("markets");
-  if (tab !== "suv") return;
-  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; suvAt = 0; }
+  const box = $("suvpanel");
+  if (tab !== "suv") { box.hidden = true; return; }
   if (box.innerHTML && Date.now() - suvAt < 5 * 60 * 1000) { box.hidden = false; return; }
   suvAt = Date.now();
   try {
     const d = await (await fetch(`${API}/api/suv`)).json();
     if (tab !== "suv") return;
-    const used = d.used || [];
-    if (!used.length) { box.hidden = true; suvAt = 0; return; }
-    const chip = (c) => `<span class="mp" title="${esc(c.gen || "")}">${c.rank}位 ${esc(c.name)} <b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b></span>`;
-    const grp = (label, list) => list.length ? `<span class="mk"><span class="mn">${label}</span>${list.map(chip).join("")}</span>` : "";
-    box.classList.add("wrap");
-    box.innerHTML = `<span class="mk"><span class="mn">全長4,600mm以下・現行型の中古平均価格(カーセンサー)</span></span>${grp("国産", used.filter((c) => !c.imp))}${grp("外車", used.filter((c) => c.imp))}`;
+    suvList = d.used || [];
+    if (!suvList.length) { box.hidden = true; suvAt = 0; return; }
+    const chip = (c) => `<button type="button" class="sc" data-i="${suvList.indexOf(c)}"><span class="scn">${c.rank}位 ${esc(c.name)}</span><b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b></button>`;
+    const grp = (label, list) => list.length ? `<div class="sg"><span class="sl">${label}</span>${list.map(chip).join("")}</div>` : "";
+    box.innerHTML = `<div class="st">全長4,600mm以下・現行型の中古平均価格（カーセンサー）<small>車種をタップすると画像が見られます</small></div>${grp("国産", suvList.filter((c) => !c.imp))}${grp("外車", suvList.filter((c) => c.imp))}`;
     box.hidden = false;
   } catch { suvAt = 0; }
 }
+function openSuv(c) {
+  const v = $("suvview");
+  v.innerHTML = `<div class="svc"><button type="button" class="svx" aria-label="閉じる">✕</button>${c.img ? `<img class="svi" src="${esc(c.img)}" alt="${esc(c.name)}" referrerpolicy="no-referrer">` : '<div class="svi none">画像がありません</div>'}<h3>${esc(c.name)}</h3><p class="svp">${c.avg ? `現行型の中古車平均価格 <b>${c.avg}万円</b>` : "相場の情報がありません"}</p><p class="svg">${esc(c.gen || "")}${c.gen ? "　／　" : ""}人気ランキング ${c.rank}位</p>${c.link ? `<a class="svl" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">カーセンサーで相場を見る ↗</a>` : ""}</div>`;
+  v.hidden = false;
+}
+$("suvpanel").addEventListener("click", (e) => {
+  const b = e.target.closest(".sc");
+  if (b) { const c = suvList[Number(b.dataset.i)]; if (c) openSuv(c); }
+});
+$("suvview").addEventListener("click", (e) => { if (e.target === $("suvview") || e.target.closest(".svx")) $("suvview").hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("suvview").hidden) $("suvview").hidden = true; });
 // ---- 車タブ: 中古車の人気ランキング（国産／外車）と、新車情報の流れる帯 ----
 let carAt = 0, carNews = [];
 async function loadCar() {

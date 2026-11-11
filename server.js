@@ -643,15 +643,23 @@ async function getSuvUsed() {
   await Promise.all(Array.from({ length: 3 }, async () => {
     while (next < targets.length) {
       const r = targets[next++];
-      let avg = null, gen = "";
+      let avg = null, gen = "", img = "";
       if (/^[A-Z]{2}_S\d+$/.test(r.code || "")) {
         try {
           const html = await fetchText(`https://www.carsensor.net/usedcar/souba/${r.code}/`, 12000);
-          const m = /<span>現行<\/span>\s*<p><a [^>]*>([^<]*)<\/a><\/p>[\s\S]*?中古車平均価格<span>([\d.]+)<\/span>万円/.exec(html) || /media__body__label[\s\S]*?<a [^>]*>([^<]*)<\/a>[\s\S]*?中古車平均価格<span>([\d.]+)<\/span>万円/.exec(html);
-          if (m) { gen = m[1].trim(); avg = Number(m[2]); }
+          // 世代ごとのブロックのうち「現行」のもの（なければ先頭＝最新の世代）から、世代・画像・平均価格を読む
+          const blocks = html.split('<div class="media"').slice(1);
+          const blk = blocks.find((b) => b.includes("<span>現行</span>")) || blocks[0] || "";
+          const m = /中古車平均価格<span>([\d.]+)<\/span>万円/.exec(blk);
+          if (m) {
+            avg = Number(m[1]);
+            gen = ((/<p><a [^>]*>([^<]*)<\/a><\/p>/.exec(blk) || [])[1] || "").trim();
+            const im = (/data-original="([^"]+)"/.exec(blk) || [])[1] || "";
+            img = im.startsWith("//") ? "https:" + im : im;
+          }
         } catch {}
       }
-      out.push({ rank: r.rank, name: r.name, avg, gen, imp: !JP_MAKERS.some((mk) => r.name.startsWith(mk)) });
+      out.push({ rank: r.rank, name: r.name, avg, gen, img, link: r.code ? `https://www.carsensor.net/usedcar/souba/${r.code}/` : "", imp: !JP_MAKERS.some((mk) => r.name.startsWith(mk)) });
     }
   }));
   out.sort((a, b) => a.rank - b.rank);
