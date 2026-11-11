@@ -827,7 +827,7 @@ const server = http.createServer(async (req, res) => {
     const headers = { "Content-Type": MIME[path.extname(file)] || "application/octet-stream", "Cache-Control": "no-cache" };
     if (p === "index.html") {
       // JS/CSS のURLに版（ファイルの更新時刻）を付ける。中身が変わらない限りブラウザが使い回せる
-      data = Buffer.from(data.toString("utf8").replace(/(href|src)="(style\.css|app\.js|config\.js)"/g, (m, a, f) => `${a}="${f}?v=${assetVer(f)}"`));
+      data = Buffer.from(data.toString("utf8").replace(/(href|src)="(style\.css|app\.js|config\.js|translate\.js)"/g, (m, a, f) => `${a}="${f}?v=${assetVer(f)}"`));
     }
     const compressible = /^(text\/|application\/(json|javascript))|svg/.test(headers["Content-Type"]);
     // ファイルはデプロイ中は変わらないので、読み込みと圧縮は1回だけ

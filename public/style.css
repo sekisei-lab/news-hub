@@ -312,3 +312,11 @@ body.flowing { overflow: hidden; }
 #tabList.reordering li:not(.drag) { animation: tlWiggle .26s ease-in-out infinite alternate; }
 @keyframes tlWiggle { from { rotate: -1.1deg; } to { rotate: 1.1deg; } }
 @media (prefers-reduced-motion: reduce) { #tabList.reordering li:not(.drag) { animation: none; } }
+
+/* 翻訳ボタン（日 / 中 / EN） */
+.langs { display: flex; align-items: center; gap: 6px; }
+.langs[hidden] { display: none; }
+.langs button { min-width: 36px; height: 30px; padding: 0 10px; border-radius: 15px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
+.langs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.langst { font-size: 11px; color: var(--sub); margin-right: 4px; }
+.meta .orig, .rmeta .orig { margin-left: auto; color: var(--accent); border: 1px solid currentColor; border-radius: 9px; padding: 0 7px; font-size: 10px; cursor: pointer; }
