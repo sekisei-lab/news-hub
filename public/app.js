@@ -322,8 +322,8 @@ setInterval(() => { if (tab === "car" && !document.hidden) loadCar(); }, 60000);
 
 // ---- ニュースバー: カードなし・ヘッダーなしの全画面。全ジャンルの記事から無作為に選んだタイトルが球体の表面に並び、ゆっくり回る ----
 // 正面に来たタイトルほど大きく、下へ回ると薄れて消える。ドラッグ（指でも）で好きな向きに回せる
-let flowItems = [], flowPool = [], flowAt = 0, flowEls = [], flowPts = [], flowRaf = 0;
-const flowPick = () => { const a = flowPool.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, 44); }; // 全ジャンルから無作為に44件
+let flowItems = [], flowPool = [], flowAt = 0, flowEls = [], flowPts = [], flowRaf = 0, flowW = [], flowOp = [], flowRep = [], flowMaxc = 24;
+const flowPick = () => { const a = flowPool.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, 56); }; // 全ジャンルから無作為に56件
 const flowRot = { ax: 0.4, ay: 0, vx: 0, vy: 0, drag: false };
 const FLOW_AUTO = 0.11; // ふだんの回転（ラジアン/秒）。約57秒で一周
 async function startFlow() {
@@ -347,8 +347,8 @@ function buildFlow() {
   const box = $("flow");
   const n = flowItems.length;
   let html = '<button type="button" class="fclose">✕ 戻る</button>';
-  flowPts = [];
-  const maxc = box.clientWidth < 600 ? 14 : 24; // 狭い画面では短く切る
+  flowPts = []; flowW = []; flowOp = []; flowRep = [];
+  const maxc = flowMaxc = box.clientWidth < 600 ? 14 : 24; // 狭い画面では短く切る
   flowItems.forEach((it, i) => {
     // 球面にほぼ均等に並べる（フィボナッチ螺旋）
     const y = n > 1 ? 1 - (2 * (i + 0.5)) / n : 0;
@@ -359,6 +359,17 @@ function buildFlow() {
   });
   box.innerHTML = html;
   flowEls = [...box.querySelectorAll(".sp")];
+}
+// 後ろに回って見えなくなったタイトルを、いま出ていない別のニュースに差し替える
+function flowSwap(i) {
+  const shown = new Set(flowItems.map((x) => x.link));
+  const cand = flowPool.filter((x) => !shown.has(x.link));
+  if (!cand.length) return;
+  const it = cand[Math.floor(Math.random() * cand.length)];
+  flowItems[i] = it;
+  const el = flowEls[i];
+  el.textContent = it.title.length > flowMaxc ? it.title.slice(0, flowMaxc - 1) + "…" : it.title;
+  flowW[i] = 0; // 幅を測り直す
 }
 function runFlow() {
   if (flowRaf || tab !== "flow") return;
@@ -378,20 +389,45 @@ function runFlow() {
     const box = $("flow"), W = box.clientWidth, H = box.clientHeight;
     const Rx = W * 0.3, Ry = H * 0.36, base = Math.max(13, Math.min(20, H * 0.026));
     const ca = Math.cos(R.ax), sa = Math.sin(R.ax), cb = Math.cos(R.ay), sb = Math.sin(R.ay);
+    // 1) 各タイトルの位置を計算
+    const pr = [];
     for (let i = 0; i < flowEls.length; i++) {
       const p = flowPts[i];
       const y1 = p[1] * ca - p[2] * sa, z1 = p[1] * sa + p[2] * ca; // 横軸まわり（正面が上から下へ動く）
       const x2 = p[0] * cb + z1 * sb, z2 = -p[0] * sb + z1 * cb; // 縦軸まわり（ドラッグの左右）
       const d = (z2 + 1) / 2; // 0=奥 1=手前
       const sy = -y1; // 画面では下が正
-      let op = Math.max(0, Math.min(1, (d - 0.25) / 0.5)); // 奥は見えなくする
+      // 後ろ半球に回ったタイトルは、見えないうちに別のニュースへ差し替える（背面から同じ記事が回ってこない）
+      if (z2 < -0.55 && !flowRep[i]) { flowSwap(i); flowRep[i] = true; flowOp[i] = 0; }
+      else if (z2 > -0.2) flowRep[i] = false;
+      let op = Math.max(0, Math.min(1, (d - 0.3) / 0.45)); // 後ろ半球は見せない
       if (sy > 0.35) op *= Math.max(0, 1 - (sy - 0.35) / 0.45); // 下に回ったら消える
-      const el = flowEls[i];
-      el.style.opacity = op.toFixed(3);
-      el.style.visibility = op < 0.02 ? "hidden" : "visible";
-      el.style.zIndex = String(Math.round(d * 100));
+      pr.push({ i, x: x2 * Rx + W / 2, y: sy * Ry + H / 2, d, op, sc: 0.42 + 1.2 * d * d });
+    }
+    // 2) 手前のものから順に、すでに出ているタイトルと大きく重なるものは薄くして消す（ぎゅっと重ならないように）
+    const order = pr.slice().sort((p, q) => q.d - p.d);
+    const placed = [];
+    for (const q of order) {
+      const el = flowEls[q.i];
+      if (!flowW[q.i]) flowW[q.i] = el.offsetWidth || 200;
+      const w = flowW[q.i] * q.sc, h = base * 1.5 * q.sc;
+      let target = q.op;
+      if (target > 0.25) {
+        const bx0 = q.x - w / 2, bx1 = q.x + w / 2, by0 = q.y - h / 2, by1 = q.y + h / 2;
+        for (const o of placed) {
+          const ox = Math.min(bx1, o.x1) - Math.max(bx0, o.x0), oy = Math.min(by1, o.y1) - Math.max(by0, o.y0);
+          if (ox > 0 && oy > 0 && (ox * oy) / Math.min(w * h, o.a) > 0.12) { target = 0; break; }
+        }
+        if (target > 0) placed.push({ x0: bx0, x1: bx1, y0: by0, y1: by1, a: w * h });
+      }
+      const cur = flowOp[q.i] ?? 0;
+      const next = cur + (target - cur) * Math.min(1, dt * 7); // 出たり消えたりをなめらかに
+      flowOp[q.i] = next;
+      el.style.opacity = next.toFixed(3);
+      el.style.visibility = next < 0.02 ? "hidden" : "visible";
+      el.style.zIndex = String(Math.round(q.d * 100));
       el.style.fontSize = base + "px";
-      el.style.transform = `translate(-50%,-50%) translate(${(x2 * Rx + W / 2).toFixed(1)}px,${(sy * Ry + H / 2).toFixed(1)}px) scale(${(0.42 + 1.2 * d * d).toFixed(3)})`;
+      el.style.transform = `translate(-50%,-50%) translate(${q.x.toFixed(1)}px,${q.y.toFixed(1)}px) scale(${q.sc.toFixed(3)})`;
     }
     flowRaf = requestAnimationFrame(frame);
   };
