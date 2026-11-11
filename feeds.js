@@ -140,4 +140,24 @@ const FEEDS = [
   { genre: "watch", source: "Yahoo!ニュース", url: Y("entertainment"), filter: WATCH_KW },
 ];
 
-module.exports = { FEEDS };
+// ---- 特集: 全長4,600mm以下のコンパクトSUV（新車情報・中古情報）----
+// 車ジャンルの記事のうち、全長4.6m以下の代表的なSUVの車名、または「小型/コンパクトのSUV」とある記事だけを集める
+const KANA = "[ァ-ヶー]";
+const SUV_MODELS = [
+  "ヤリス ?クロス", `(?<!${KANA})ライズ(?!${KANA})`, `(?<!${KANA})ロッキー(?!${KANA})`, "ヴェゼル", "ZR-V", "ＺＲ-Ｖ", "WR-V", "HR-V", "CX-3(?!\d)", "CX-30", "MX-30",
+  "キックス", "クロストレック", "ジムニー", "クロスビー", "ハスラー", "カローラ ?クロス", "C-HR", "エクリプス ?クロス", "デリカミニ", "ジューク",
+  "アーバンクルーザー", "ビターラ", "エスクード", "T-?Cross", "Tクロス", "T-?Roc", "プジョー ?2008", "キャプチャー", "アルカナ", "(?:MINI|ミニ) ?クロスオーバー",
+  "フィアット ?600", "アバルト ?600", "アベンジャー", "レネゲード", "EX30", "XC40", "アウディ ?Q[23](?!\d)", "BMW ?X1(?!\d)", "メルセデス.{0,6}GLA", "ヒョンデ ?コナ", "KONA", "ATTO ?3", "e:Ny1",
+].join("|");
+const SUV_GENERIC = "(?=.*(?:SUV|ＳＵＶ))(?=.*(?:コンパクト|小型|全長4[,.]?[0-5]\d{2}|全長4\.[0-5]|4[0-5]\d{2}mm))";
+const SUV_MODEL_RE = new RegExp(SUV_MODELS, "i");
+const SUV_RE = new RegExp(`(?:${SUV_MODELS})|(?:${SUV_GENERIC})`, "is");
+FEEDS.push(...FEEDS.filter((f) => f.genre === "car").map((f) => ({ ...f, genre: "suv", filter: SUV_RE })));
+// 中古車の情報（グーネット）や、他のクルマ専門メディアからも、同じ条件で集める
+FEEDS.push(
+  { genre: "suv", source: "グーネット", url: "https://www.goo-net.com/magazine/feed/", filter: SUV_RE },
+  { genre: "suv", source: "WebCG", url: "https://www.webcg.net/list/feed/rss", filter: SUV_RE },
+  { genre: "suv", source: "ベストカーWeb", url: "https://bestcarweb.jp/feed", filter: SUV_RE },
+);
+
+module.exports = { FEEDS, SUV_MODEL_RE };

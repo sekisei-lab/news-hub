@@ -15,6 +15,7 @@ const GENRES = {
   economy: { label: "経済" },
   finance: { label: "金融" },
   car: { label: "車" },
+  suv: { label: "小型SUV" }, // 特集: 全長4,600mm以下のコンパクトSUV
   cosme: { label: "コスメ" },
   national: { label: "国内" },
   world: { label: "国際" },
@@ -32,7 +33,7 @@ const GENRES = {
 
 // 広告・PR記事は除外
 const AD_RE = /［PR］|\[PR\]|【PR】|\bPR\b|PR TIMES|プレスリリース|Sponsored/i;
-const { FEEDS } = require("./feeds");
+const { FEEDS, SUV_MODEL_RE } = require("./feeds");
 const makeExtractor = require("./article");
 
 // ---------- 取得・パース ----------
@@ -618,7 +619,7 @@ async function fetchUsedCarRanking() {
   const list = rows.filter((r) => (seen.has(r.name) ? false : seen.add(r.name))).sort((a, b) => a.rank - b.rank);
   const isJp = (n) => JP_MAKERS.some((m) => n.startsWith(m));
   const fmt = (r) => ({ rank: r.rank, name: r.name });
-  return { domestic: list.filter((r) => isJp(r.name)).slice(0, 3).map(fmt), imported: list.filter((r) => !isJp(r.name)).slice(0, 3).map(fmt), source: "カーセンサー 人気車種（問い合わせ数）" };
+  return { all: list, domestic: list.filter((r) => isJp(r.name)).slice(0, 3).map(fmt), imported: list.filter((r) => !isJp(r.name)).slice(0, 3).map(fmt), source: "カーセンサー 人気車種（問い合わせ数）" };
 }
 async function getUsedCar() {
   if (usedCarCache.data && Date.now() - usedCarCache.at < 6 * 60 * 60 * 1000) return usedCarCache.data;
@@ -713,6 +714,12 @@ const server = http.createServer(async (req, res) => {
     const items = await getInsider();
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
     return res.end(JSON.stringify({ items }));
+  }
+  if (url.pathname === "/api/suv") {
+    const used = await getUsedCar().catch(() => null);
+    const list = ((used && used.all) || []).filter((r) => SUV_MODEL_RE.test(r.name)).slice(0, 8);
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
+    return res.end(JSON.stringify({ used: list, source: used ? "カーセンサー 人気車種（問い合わせ数）" : "" }));
   }
   if (url.pathname === "/api/car") {
     const news = store.updatedAt ? getNewCarNews() : [];

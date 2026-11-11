@@ -12,7 +12,7 @@ let prefs = store.get("newshub.prefs", { order: [], hidden: [], custom: [], dele
 if (!isNewVisitor && prefs.init === undefined) prefs.init = true; // 以前から使っている人の設定は変えない
 prefs.deleted ||= [];
 // 初期表示のタブ（それ以外は設定でONにすると出る）
-const DEFAULT_TABS = ["national", "world", "politics", "economy", "finance", "it", "car", "cosme", "flow"];
+const DEFAULT_TABS = ["national", "world", "politics", "economy", "finance", "it", "car", "suv", "cosme", "flow"];
 function applyDefaultTabs() {
   if (prefs.init || !Object.keys(genres).length) return;
   prefs.hidden = Object.keys(genres).filter((id) => !DEFAULT_TABS.includes(id));
@@ -221,6 +221,23 @@ async function loadHot() {
     renderTicker("hot", "注目", d.items || []);
   } catch { hotAt = 0; }
 }
+// ---- 特集タブ（小型SUV）: 中古車の人気ランキングのうち、全長4,600mm以下のSUVだけを一行で見せる ----
+let suvAt = 0;
+async function loadSuv() {
+  const box = $("markets");
+  if (tab !== "suv") return;
+  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; suvAt = 0; }
+  if (box.innerHTML && Date.now() - suvAt < 5 * 60 * 1000) { box.hidden = false; return; }
+  suvAt = Date.now();
+  try {
+    const d = await (await fetch(`${API}/api/suv`)).json();
+    if (tab !== "suv") return;
+    const used = d.used || [];
+    if (!used.length) { box.hidden = true; suvAt = 0; return; }
+    box.innerHTML = `<span class="mk"><span class="mn">全長4,600mm以下 中古の人気(カーセンサー)</span>${used.map((c, i) => `<span class="mp">${i + 1}位 ${esc(c.name)}</span>`).join("")}</span>`;
+    box.hidden = false;
+  } catch { suvAt = 0; }
+}
 // ---- 車タブ: 中古車の人気ランキング（国産／外車）と、新車情報の流れる帯 ----
 let carAt = 0, carNews = [];
 async function loadCar() {
@@ -412,6 +429,7 @@ async function load({ fresh = false, poll = false } = {}) {
   loadWeather();
   loadHot();
   loadCar();
+  loadSuv();
   loadInsider();
   try {
     const r = await fetch(`${API}/api/news?${queryFor()}&limit=${PAGE}&offset=0${fresh ? "&fresh=1" : ""}`);
