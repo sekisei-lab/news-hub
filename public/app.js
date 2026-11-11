@@ -411,11 +411,11 @@ function runFlow() {
       const d = (z2 + 1) / 2; // 0=奥 1=手前
       const sy = -y1; // 画面では下が正
       // 後ろ半球に回ったタイトルは、見えないうちに別のニュースへ差し替える（背面から同じ記事が回ってこない）
-      if (z2 < -0.55 && !flowRep[i]) { flowSwap(i); flowRep[i] = true; flowOp[i] = 0; }
-      else if (z2 > -0.2) flowRep[i] = false;
-      let op = Math.max(0, Math.min(1, (d - 0.3) / 0.45)); // 後ろ半球は見せない
+      if (z2 < -0.2 && !flowRep[i]) { flowSwap(i); flowRep[i] = true; flowOp[i] = 0; }
+      else if (z2 > 0.2) flowRep[i] = false;
+      let op = Math.max(0, Math.min(1, (z2 - 0.05) / 0.35)); // 手前の半球（z>0）だけ見せる。奥の半球は完全に消す（マウスと逆向きに動いて見えるのを防ぐ）
       if (sy > 0.35) op *= Math.max(0, 1 - (sy - 0.35) / 0.45); // 下に回ったら消える
-      pr.push({ i, x: x2 * Rx + W / 2, y: sy * Ry + H / 2, d, op, sc: 0.42 + 1.2 * d * d });
+      pr.push({ i, z: z2, x: x2 * Rx + W / 2, y: sy * Ry + H / 2, d, op, sc: 0.42 + 1.2 * d * d });
     }
     // 2) 手前のものから順に、すでに出ているタイトルと大きく重なるものは薄くして消す（ぎゅっと重ならないように）
     const order = pr.slice().sort((p, q) => q.d - p.d);
@@ -434,7 +434,8 @@ function runFlow() {
         if (target > 0) placed.push({ x0: bx0, x1: bx1, y0: by0, y1: by1, a: w * h });
       }
       const cur = flowOp[q.i] ?? 0;
-      const next = cur + (target - cur) * Math.min(1, dt * 7); // 出たり消えたりをなめらかに
+      let next = cur + (target - cur) * Math.min(1, dt * 7); // 出たり消えたりをなめらかに
+      if (q.z <= 0.02) next = 0; // 後ろの半球に入ったら、その場で消す
       flowOp[q.i] = next;
       el.style.opacity = next.toFixed(3);
       el.style.visibility = next < 0.02 ? "hidden" : "visible";
