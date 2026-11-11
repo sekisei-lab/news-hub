@@ -383,9 +383,11 @@ async function startFlow() {
 }
 // 全画面（PCとAndroid。iPhoneのSafariは、ページのボタンでは全画面にできない）
 const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
-const fsCan = () => !!($("flow").requestFullscreen || $("flow").webkitRequestFullscreen) && (document.fullscreenEnabled !== false);
+// 全画面にするのは、地球の画面だけでなく「ページ全体」。地球の画面だけだと、記事の詳細画面（別の部品）が、全画面の外側になって表示されない
+const fsRoot = () => document.documentElement;
+const fsCan = () => !!(fsRoot().requestFullscreen || fsRoot().webkitRequestFullscreen) && (document.fullscreenEnabled !== false);
 function fsToggle() {
-  const box = $("flow");
+  const box = fsRoot();
   try {
     if (fsEl()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
     else { const p = (box.requestFullscreen || box.webkitRequestFullscreen).call(box, { navigationUI: "hide" }); if (p && p.catch) p.catch(() => {}); }

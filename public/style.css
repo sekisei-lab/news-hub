@@ -302,7 +302,6 @@ body.flowing { overflow: hidden; }
 .ffull .i-exit { display: none; }
 .ffull.on .i-enter { display: none; }
 .ffull.on .i-exit { display: inline; }
-.flow:fullscreen { width: 100vw; height: 100vh; }
 .flowfade2 { position: absolute; inset: 0; z-index: 250; background: #000; opacity: 0; pointer-events: none; transition: opacity .7s ease; }
 .flowfade2.on { opacity: 1; }
 
