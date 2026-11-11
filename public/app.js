@@ -341,6 +341,7 @@ const flowShuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i-
 // 全ジャンルから無作為に56件
 const flowPick = () => flowShuffle(flowPool).slice(0, 56);
 const flowRot = { ax: 0.4, ay: 0, vx: 0, vy: 0, drag: false };
+const flowGeo = { rx: 300, ry: 300 }; // いまの球の半径（ドラッグの回転量の計算に使う）
 const FLOW_AUTO = 0.11; // ふだんの回転（ラジアン/秒）。約57秒で一周
 // ジャンルごとのネオンの色（色相）
 const GENRE_HUE = { politics: 215, economy: 45, finance: 50, car: 20, suv: 20, cosme: 330, national: 190, world: 170, sports: 130, entertainment: 320, it: 195, science: 260, life: 90, gourmet: 25, health: 150, travel: 175, game: 275, watch: 40 };
@@ -519,7 +520,11 @@ function runFlow() {
       R.ay += R.vy * dt;
     }
     const box = $("flow"), W = box.clientWidth, H = box.clientHeight;
-    const Rx = W * 0.3, Ry = H * 0.36, base = Math.max(13, Math.min(20, H * 0.026));
+    // 横長の画面は横に広い楕円（長いタイトルが入るように）、縦長のスマホは真円にする
+    const portrait = W < H;
+    const Rx = portrait ? Math.min(W * 0.4, H * 0.34) : W * 0.3, Ry = portrait ? Rx : H * 0.36;
+    flowGeo.rx = Rx; flowGeo.ry = Ry;
+    const base = portrait ? Math.max(13, Math.min(17, W * 0.042)) : Math.max(13, Math.min(20, H * 0.026));
     const ca = Math.cos(R.ax), sa = Math.sin(R.ax), cb = Math.cos(R.ay), sb = Math.sin(R.ay);
     flowDraw($("flowcv"), W, H, Rx, Ry, ca, sa, cb, sb, now / 1000);
     flowClock();
@@ -536,7 +541,10 @@ function runFlow() {
       else if (z2 > 0.2) flowRep[i] = false;
       let op = Math.max(0, Math.min(1, (z2 - 0.05) / 0.35)); // 手前の半球（z>0）だけ見せる。奥の半球は完全に消す（マウスと逆向きに動いて見えるのを防ぐ）
       if (sy > 0.35) op *= Math.max(0, 1 - (sy - 0.35) / 0.45); // 下に回ったら消える
-      pr.push({ i, z: z2, x: x2 * Rx + W / 2, y: sy * Ry + H / 2, d, op, sc: 0.42 + 1.2 * d * d });
+      const sc = portrait ? 0.55 + 0.75 * d * d : 0.42 + 1.2 * d * d;
+      let px = x2 * Rx + W / 2;
+      if (portrait) { const hw = ((flowW[i] || 160) * sc) / 2 + 6; px = Math.max(hw, Math.min(W - hw, px)); } // スマホでは、タイトルが画面の外に出ないようにする
+      pr.push({ i, z: z2, x: px, y: sy * Ry + H / 2, d, op, sc });
     }
     // 2) 手前のものから順に、すでに出ているタイトルと大きく重なるものは薄くして消す（ぎゅっと重ならないように）
     const order = pr.slice().sort((p, q) => q.d - p.d);
@@ -583,7 +591,7 @@ function runFlow() {
     const dx = e.clientX - lx, dy = e.clientY - ly;
     moved = Math.max(moved, Math.hypot(e.clientX - sx, e.clientY - sy));
     // 球の大きさに合わせて回す: つかんだ場所の面が、マウスにぴったりついてくる（球の上でも、タイトルの上でも、背景でも同じ）
-    const kx = 1 / (box.clientWidth * 0.3), ky = 1 / (box.clientHeight * 0.36);
+    const kx = 1 / flowGeo.rx, ky = 1 / flowGeo.ry;
     flowRot.ay += dx * kx; flowRot.ax += dy * ky;
     flowRot.vy = Math.max(-4, Math.min(4, (dx * kx) / dt)); flowRot.vx = Math.max(-4, Math.min(4, (dy * ky) / dt));
     lx = e.clientX; ly = e.clientY; lt = now;
