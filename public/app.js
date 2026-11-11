@@ -385,6 +385,41 @@ function buildFlow() {
   flowEls = [...sp.querySelectorAll(".sp")];
   flowEls.forEach((el, i) => flowStyle(el, flowItems[i]));
 }
+// 戻るボタン: 流れ星が落ちて、画面が暗くなり、通常の画面へ切り替わる
+let flowLeaving = false;
+function leaveFlow() {
+  if (flowLeaving) return;
+  flowLeaving = true;
+  const box = $("flow"), fade = $("flowfade"), btn = box.querySelector(".fclose");
+  const W = box.clientWidth, H = box.clientHeight;
+  const br = btn.getBoundingClientRect();
+  const x0 = br.left + br.width / 2, y0 = br.top + br.height / 2; // 流れ星はボタンから出る
+  const x1 = W * 0.18, y1 = H * 0.98; // 左下へ落ちる
+  const ang = Math.atan2(y1 - y0, x1 - x0);
+  const mk = (len, thick, delay, dur, scale) => {
+    const el = document.createElement("div");
+    el.className = "fstar";
+    el.style.cssText = "width:" + len + "px;height:" + thick + "px;left:" + (x0 - len) + "px;top:" + (y0 - thick / 2) + "px";
+    box.appendChild(el);
+    const dx = (x1 - x0) * scale, dy = (y1 - y0) * scale;
+    el.animate([
+      { transform: "translate(0,0) rotate(" + ang + "rad)", opacity: 0 },
+      { transform: "translate(" + dx * 0.08 + "px," + dy * 0.08 + "px) rotate(" + ang + "rad)", opacity: 1, offset: 0.08 },
+      { transform: "translate(" + dx + "px," + dy + "px) rotate(" + ang + "rad)", opacity: 0.9 },
+    ], { duration: dur, delay, easing: "cubic-bezier(.35,.1,.85,.55)", fill: "both" }).onfinish = () => el.remove();
+  };
+  mk(220, 4, 0, 1000, 1);        // 本体
+  mk(120, 2, 120, 900, 0.85);    // 小さな連れ
+  mk(80, 2, 240, 800, 0.7);
+  box.classList.add("leaving"); // 地球がすっと沈む
+  btn.classList.add("go");
+  setTimeout(() => { fade.classList.add("on"); }, 550); // 画面が暗くなる
+  setTimeout(() => {
+    tab = "all"; store.set("newshub.tab", "all"); renderTabs(); load(); // 通常の画面へ（この間は真っ暗）
+    box.classList.remove("leaving"); btn.classList.remove("go");
+    setTimeout(() => { fade.classList.remove("on"); flowLeaving = false; }, 120); // 暗がりから通常の画面が現れる
+  }, 1500);
+}
 // 後ろに回って見えなくなったタイトルを、いま出ていない別のニュースに差し替える
 function flowSwap(i) {
   const shown = new Set(flowItems.map((x) => x.link));
@@ -564,7 +599,7 @@ function runFlow() {
   box.addEventListener("pointercancel", () => { flowRot.drag = false; downEl = null; });
   box.addEventListener("wheel", (e) => { e.preventDefault(); flowRot.ax -= e.deltaY * 0.002; }, { passive: false });
   box.addEventListener("click", (e) => {
-    if (e.target.closest(".fclose")) { tab = "all"; store.set("newshub.tab", "all"); renderTabs(); load(); }
+    if (e.target.closest(".fclose")) leaveFlow();
   });
 }
 
