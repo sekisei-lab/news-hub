@@ -153,7 +153,7 @@ function render() {
 const MARKET_SET = { finance: "finance", it: "it" };
 async function loadMarkets() {
   const box = $("markets");
-  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; } // タブが変わったら前の内容を消す
+  if (box.dataset.for !== tab) { box.hidden = true; box.innerHTML = ""; box.dataset.for = tab; box.classList.remove("wrap"); } // タブが変わったら前の内容を消す
   const set = MARKET_SET[tab];
   if (!set) { if (tab !== "national") box.hidden = true; return; }
   try {
@@ -234,7 +234,10 @@ async function loadSuv() {
     if (tab !== "suv") return;
     const used = d.used || [];
     if (!used.length) { box.hidden = true; suvAt = 0; return; }
-    box.innerHTML = `<span class="mk"><span class="mn">全長4,600mm以下 中古の人気(カーセンサー)</span>${used.map((c, i) => `<span class="mp">${i + 1}位 ${esc(c.name)}</span>`).join("")}</span>`;
+    const chip = (c) => `<span class="mp" title="${esc(c.gen || "")}">${c.rank}位 ${esc(c.name)} <b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b></span>`;
+    const grp = (label, list) => list.length ? `<span class="mk"><span class="mn">${label}</span>${list.map(chip).join("")}</span>` : "";
+    box.classList.add("wrap");
+    box.innerHTML = `<span class="mk"><span class="mn">全長4,600mm以下・現行型の中古平均価格(カーセンサー)</span></span>${grp("国産", used.filter((c) => !c.imp))}${grp("外車", used.filter((c) => c.imp))}`;
     box.hidden = false;
   } catch { suvAt = 0; }
 }

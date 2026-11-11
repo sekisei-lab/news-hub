@@ -227,3 +227,10 @@ body.flowing { overflow: hidden; }
 .flow .sp { cursor: grab; }
 .flow:active .sp { cursor: grabbing; }
 .flow .sp, .flow .sp * { -webkit-user-drag: none; user-select: none; }
+
+/* 小型SUV: 車種ごとの中古平均価格は折り返して全部見せる */
+.markets.wrap { flex-wrap: wrap; white-space: normal; row-gap: 4px; gap: 4px 14px; overflow-x: visible; }
+.markets.wrap .mk { flex: 1 1 100%; display: block; }
+.markets.wrap .mk .mn { margin-right: 8px; }
+.markets.wrap .mk .mp { display: inline-block; margin: 0 10px 0 0; }
+.markets .pr { color: var(--accent); font-weight: 700; }

@@ -602,7 +602,7 @@ async function getInsider() {
 const JP_MAKERS = ["トヨタ", "日産", "ホンダ", "マツダ", "スバル", "スズキ", "ダイハツ", "三菱", "レクサス", "いすゞ", "光岡", "日野", "ミツオカ"];
 let usedCarCache = { at: 0, data: null };
 async function fetchUsedCarRanking() {
-  const pages = ["https://www.carsensor.net/ranking/index.html", ...Array.from({ length: 9 }, (_, i) => `https://www.carsensor.net/ranking/pop/index${i + 2}.html`)];
+  const pages = ["https://www.carsensor.net/ranking/index.html", ...Array.from({ length: 24 }, (_, i) => `https://www.carsensor.net/ranking/pop/index${i + 2}.html`)];
   const rows = [];
   for (const u of pages) {
     try {
@@ -610,9 +610,12 @@ async function fetchUsedCarRanking() {
       // ページには「人気車種」と「1年以内に発売されたモデル」の2つのランキングがある。最初のもの（人気車種）だけを読む
       const st = html.indexOf('class="ranking is-active"');
       if (st >= 0) { const nx = html.indexOf('<ul class="ranking', st + 20); html = html.slice(st, nx > 0 ? nx : undefined); }
-      const ranks = [...html.matchAll(/rankingItem__rank[^"]*">(\d+)</g)].map((m) => Number(m[1]));
-      const names = [...html.matchAll(/class="rankingItem__name">\s*([^<]+?)\s*</g)].map((m) => m[1].replace(/\s+/g, " ").trim());
-      names.forEach((n, i) => { if (ranks[i]) rows.push({ rank: ranks[i], name: n }); });
+      for (const blk of html.split('<li class="rankingItem">').slice(1)) {
+        const rank = Number((/rankingItem__rank[^"]*">(\d+)</.exec(blk) || [])[1]);
+        const name = ((/class="rankingItem__name">\s*([^<]+?)\s*</.exec(blk) || [])[1] || "").replace(/\s+/g, " ").trim();
+        const code = (/CSphoto\/cat\/([A-Z]{2})\/(S\d+)\//.exec(blk) || []).slice(1).join("_");
+        if (rank && name) rows.push({ rank, name, code });
+      }
     } catch {}
   }
   const seen = new Set();
@@ -628,6 +631,32 @@ async function getUsedCar() {
     if (d.domestic.length || d.imported.length) usedCarCache = { at: Date.now(), data: d };
   } catch {}
   return usedCarCache.data;
+}
+// 小型SUV: 人気ランキングにある対象車種ごとに、相場ページから「現行型」の中古車平均価格を読む（12時間キャッシュ）
+let suvUsedCache = { at: 0, data: [] };
+async function getSuvUsed() {
+  if (suvUsedCache.data.length && Date.now() - suvUsedCache.at < 12 * 60 * 60 * 1000) return suvUsedCache.data;
+  const used = await getUsedCar().catch(() => null);
+  const targets = ((used && used.all) || []).filter((r) => SUV_MODEL_RE.test(r.name)).slice(0, 20);
+  const out = [];
+  let next = 0;
+  await Promise.all(Array.from({ length: 3 }, async () => {
+    while (next < targets.length) {
+      const r = targets[next++];
+      let avg = null, gen = "";
+      if (/^[A-Z]{2}_S\d+$/.test(r.code || "")) {
+        try {
+          const html = await fetchText(`https://www.carsensor.net/usedcar/souba/${r.code}/`, 12000);
+          const m = /<span>現行<\/span>\s*<p><a [^>]*>([^<]*)<\/a><\/p>[\s\S]*?中古車平均価格<span>([\d.]+)<\/span>万円/.exec(html) || /media__body__label[\s\S]*?<a [^>]*>([^<]*)<\/a>[\s\S]*?中古車平均価格<span>([\d.]+)<\/span>万円/.exec(html);
+          if (m) { gen = m[1].trim(); avg = Number(m[2]); }
+        } catch {}
+      }
+      out.push({ rank: r.rank, name: r.name, avg, gen, imp: !JP_MAKERS.some((mk) => r.name.startsWith(mk)) });
+    }
+  }));
+  out.sort((a, b) => a.rank - b.rank);
+  if (out.length) suvUsedCache = { at: Date.now(), data: out };
+  return suvUsedCache.data;
 }
 const NEWCAR_RE = /新型|新車|発売|発表|フルモデルチェンジ|マイナーチェンジ|一部改良|ワールドプレミア|世界初公開|初公開|予約開始|受注開始|価格|登場|デビュー|ティザー|公開/;
 function getNewCarNews() {
@@ -716,10 +745,9 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ items }));
   }
   if (url.pathname === "/api/suv") {
-    const used = await getUsedCar().catch(() => null);
-    const list = ((used && used.all) || []).filter((r) => SUV_MODEL_RE.test(r.name)).slice(0, 8);
+    const list = await getSuvUsed().catch(() => []);
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60", "Access-Control-Allow-Origin": "*" });
-    return res.end(JSON.stringify({ used: list, source: used ? "カーセンサー 人気車種（問い合わせ数）" : "" }));
+    return res.end(JSON.stringify({ used: list, source: "カーセンサー 人気車種（問い合わせ数）・相場" }));
   }
   if (url.pathname === "/api/car") {
     const news = store.updatedAt ? getNewCarNews() : [];
