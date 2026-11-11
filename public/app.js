@@ -340,7 +340,20 @@ let flowStars = [], flowShoot = null, flowShootAt = 0;
 const flowShuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 // 全ジャンルから無作為に56件
 const flowPick = () => flowShuffle(flowPool).slice(0, 56);
-const flowRot = { ax: 0.4, ay: 0, vx: 0, vy: 0, drag: false };
+const m3rx = (a) => { const c = Math.cos(a), s = Math.sin(a); return [1, 0, 0, 0, c, -s, 0, s, c]; }; // 画面の横軸まわり（上下）
+const m3ry = (a) => { const c = Math.cos(a), s = Math.sin(a); return [c, 0, s, 0, 1, 0, -s, 0, c]; }; // 画面の縦軸まわり（左右）
+const m3mul = (A, B) => { const o = new Array(9); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) o[i * 3 + j] = A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]; return o; };
+const flowRot = { M: m3rx(0.4), vx: 0, vy: 0, drag: false };
+// 画面を基準に、左右へ dy、上下へ dx（ラジアン）だけ回す
+function flowTurn(rx, ry) {
+  let M = m3mul(m3ry(ry), m3mul(m3rx(rx), flowRot.M));
+  // 少しずつ狂わないよう、行を直交化する
+  const n = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  let a = n([M[0], M[1], M[2]]);
+  let b = [M[3], M[4], M[5]]; const d = b[0] * a[0] + b[1] * a[1] + b[2] * a[2]; b = n([b[0] - d * a[0], b[1] - d * a[1], b[2] - d * a[2]]);
+  const c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  flowRot.M = [...a, ...b, ...c];
+}
 const flowGeo = { rx: 300, ry: 300 }; // いまの球の半径（ドラッグの回転量の計算に使う）
 const FLOW_AUTO = 0.11; // ふだんの回転（ラジアン/秒）。約57秒で一周
 // ジャンルごとのネオンの色（色相）
@@ -472,7 +485,7 @@ function flowSwap(i) {
   flowW[i] = 0; // 幅を測り直す
 }
 // 背景: 星空・地球の大気の光・緯線と経線・ときどき流れ星
-function flowDraw(cv, W, H, Rx, Ry, ca, sa, cb, sb, t) {
+function flowDraw(cv, W, H, Rx, Ry, M, t) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); flowStars = []; }
   const g = cv.getContext("2d");
@@ -506,7 +519,7 @@ function flowDraw(cv, W, H, Rx, Ry, ca, sa, cb, sb, t) {
   g.fillStyle = atm; g.beginPath(); g.arc(0, 0, 1.3, 0, 6.2832); g.fill();
   g.restore();
   // 緯線・経線（手前の半球だけ）
-  const proj = (x, y, z) => { const y1 = y * ca - z * sa, z1 = y * sa + z * ca; return [x * cb + z1 * sb, -y1, -x * sb + z1 * cb]; };
+  const proj = (x, y, z) => [M[0] * x + M[1] * y + M[2] * z, -(M[3] * x + M[4] * y + M[5] * z), M[6] * x + M[7] * y + M[8] * z];
   g.lineWidth = 1;
   const seg = (pts) => {
     for (let i = 1; i < pts.length; i++) {
@@ -545,21 +558,19 @@ function runFlow() {
     if (!R.drag) {
       R.vx += (FLOW_AUTO - R.vx) * Math.min(1, dt * 2); // 手を離したら、勢いが静まってゆっくりの回転に戻る
       R.vy += (0 - R.vy) * Math.min(1, dt * 2);
-      R.ax += R.vx * dt;
-      R.ay += R.vy * dt;
+      flowTurn(R.vx * dt, R.vy * dt);
     }
     const box = $("flow"), W = box.clientWidth, H = box.clientHeight;
     const Rx = flowRadius(W, H), Ry = Rx;
     flowGeo.rx = Rx; flowGeo.ry = Ry;
     const base = flowBase(Rx);
-    const ca = Math.cos(R.ax), sa = Math.sin(R.ax), cb = Math.cos(R.ay), sb = Math.sin(R.ay);
-    flowDraw($("flowcv"), W, H, Rx, Ry, ca, sa, cb, sb, now / 1000);
+    const M = R.M;
+    flowDraw($("flowcv"), W, H, Rx, Ry, M, now / 1000);
     // 1) 各タイトルの位置を計算
     const pr = [];
     for (let i = 0; i < flowEls.length; i++) {
       const p = flowPts[i];
-      const y1 = p[1] * ca - p[2] * sa, z1 = p[1] * sa + p[2] * ca; // 横軸まわり（正面が上から下へ動く）
-      const x2 = p[0] * cb + z1 * sb, z2 = -p[0] * sb + z1 * cb; // 縦軸まわり（ドラッグの左右）
+      const x2 = M[0] * p[0] + M[1] * p[1] + M[2] * p[2], y1 = M[3] * p[0] + M[4] * p[1] + M[5] * p[2], z2 = M[6] * p[0] + M[7] * p[1] + M[8] * p[2]; // 回転後の位置（x:右 y:上 z:手前）
       const d = (z2 + 1) / 2; // 0=奥 1=手前
       const sy = -y1; // 画面では下が正
       // 後ろ半球に回ったタイトルは、見えないうちに別のニュースへ差し替える（背面から同じ記事が回ってこない）
@@ -622,7 +633,7 @@ function runFlow() {
     moved = Math.max(moved, Math.hypot(e.clientX - sx, e.clientY - sy));
     // 球の大きさに合わせて回す: つかんだ場所の面が、マウスにぴったりついてくる（球の上でも、タイトルの上でも、背景でも同じ）
     const kx = 1 / flowGeo.rx, ky = 1 / flowGeo.ry;
-    flowRot.ay += dx * kx; flowRot.ax += dy * ky;
+    flowTurn(dy * ky, dx * kx); // 画面を基準に回す: マウスを動かした向きに、手前の面がついてくる
     flowRot.vy = Math.max(-4, Math.min(4, (dx * kx) / dt)); flowRot.vx = Math.max(-4, Math.min(4, (dy * ky) / dt));
     lx = e.clientX; ly = e.clientY; lt = now;
   });
@@ -635,7 +646,7 @@ function runFlow() {
   };
   box.addEventListener("pointerup", up);
   box.addEventListener("pointercancel", () => { flowRot.drag = false; downEl = null; });
-  box.addEventListener("wheel", (e) => { e.preventDefault(); flowRot.ax -= e.deltaY * 0.002; }, { passive: false });
+  box.addEventListener("wheel", (e) => { e.preventDefault(); flowTurn(-e.deltaY * 0.002, 0); }, { passive: false });
   box.addEventListener("click", (e) => {
     if (e.target.closest(".fclose")) leaveFlow();
   });
