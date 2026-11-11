@@ -334,12 +334,12 @@ for (const id of ["hot", "newcar"]) {
 setInterval(() => { if (tab === "car" && !document.hidden) loadCar(); }, 60000);
 
 // ---- ニュース🌐: カードなし・ヘッダーなしの全画面。全ジャンルの記事から無作為に選んだタイトルが、光る地球の表面に並んでゆっくり回る ----
-// 手前の半球のタイトルだけが見え、正面に来たものは画像つきのカードになる。ドラッグ（指でも）で好きな向きに回せる。時計つき（待機画面用）
+// 手前の半球のタイトルだけが見える。ドラッグ（指でも）で好きな向きに回せる。時計つき（待機画面用）
 let flowItems = [], flowPool = [], flowAt = 0, flowEls = [], flowPts = [], flowRaf = 0, flowW = [], flowOp = [], flowRep = [], flowMaxc = 24;
-let flowFeat = -1, flowBad = new Set(), flowStars = [], flowShoot = null, flowShootAt = 0, flowClockKey = "";
+let flowStars = [], flowShoot = null, flowShootAt = 0, flowClockKey = "";
 const flowShuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-// 全ジャンルから無作為に56件。正面でカードになれるよう、画像つきの記事を半分ほど入れる
-const flowPick = () => { const sh = flowShuffle(flowPool); const withImg = sh.filter((x) => x.image), no = sh.filter((x) => !x.image); return flowShuffle([...withImg.slice(0, 28), ...no.slice(0, 28), ...withImg.slice(28), ...no.slice(28)].slice(0, 56)); };
+// 全ジャンルから無作為に56件
+const flowPick = () => flowShuffle(flowPool).slice(0, 56);
 const flowRot = { ax: 0.4, ay: 0, vx: 0, vy: 0, drag: false };
 const FLOW_AUTO = 0.11; // ふだんの回転（ラジアン/秒）。約57秒で一周
 // ジャンルごとのネオンの色（色相）
@@ -371,8 +371,7 @@ function buildFlow() {
   const sp = $("flowsp");
   const n = flowItems.length;
   let html = "";
-  flowPts = []; flowW = []; flowOp = []; flowRep = []; flowFeat = -1;
-  $("flowfeat").hidden = true;
+  flowPts = []; flowW = []; flowOp = []; flowRep = [];
   const maxc = flowMaxc = $("flow").clientWidth < 600 ? 14 : 24; // 狭い画面では短く切る
   flowItems.forEach((it, i) => {
     // 球面にほぼ均等に並べる（フィボナッチ螺旋）
@@ -389,17 +388,14 @@ function buildFlow() {
 // 後ろに回って見えなくなったタイトルを、いま出ていない別のニュースに差し替える
 function flowSwap(i) {
   const shown = new Set(flowItems.map((x) => x.link));
-  let cand = flowPool.filter((x) => !shown.has(x.link));
+  const cand = flowPool.filter((x) => !shown.has(x.link));
   if (!cand.length) return;
-  const ci = cand.filter((x) => x.image);
-  if (ci.length && Math.random() < 0.5) cand = ci; // 半分は画像つき
   const it = cand[Math.floor(Math.random() * cand.length)];
   flowItems[i] = it;
   const el = flowEls[i];
   el.textContent = it.title.length > flowMaxc ? it.title.slice(0, flowMaxc - 1) + "…" : it.title;
   flowStyle(el, it);
   flowW[i] = 0; // 幅を測り直す
-  if (flowFeat === i) flowFeat = -1;
 }
 // 時計（待機画面用）。秒が変わるたびに更新
 function flowClock() {
@@ -507,41 +503,15 @@ function runFlow() {
       if (sy > 0.35) op *= Math.max(0, 1 - (sy - 0.35) / 0.45); // 下に回ったら消える
       pr.push({ i, z: z2, x: x2 * Rx + W / 2, y: sy * Ry + H / 2, d, op, sc: 0.42 + 1.2 * d * d });
     }
-    // 2) 正面（球の中心に近い手前）の、画像つきの記事を1本選んで、カードにする
-    const dist = (q) => Math.hypot((q.x - W / 2) / Rx, (q.y - H / 2) / Ry);
-    const okFeat = (q) => q.z > 0.5 && (flowOp[q.i] ?? 0) > 0.5 && flowItems[q.i].image && !flowBad.has(flowItems[q.i].image);
-    let best = null;
-    for (const q of pr) if (okFeat(q) && (!best || q.z - 0.7 * dist(q) > best.z - 0.7 * dist(best))) best = q;
-    const curQ = flowFeat >= 0 ? pr[flowFeat] : null;
-    if (best && (!curQ || !okFeat(curQ) || (best.i !== flowFeat && best.z - 0.7 * dist(best) > curQ.z - 0.7 * dist(curQ) + 0.2))) flowFeat = best.i;
-    else if (curQ && !okFeat(curQ)) flowFeat = -1;
-    const ff = $("flowfeat");
-    const fq = flowFeat >= 0 ? pr[flowFeat] : null;
-    if (fq) {
-      const it = flowItems[flowFeat];
-      if (ff.dataset.link !== it.link) {
-        ff.dataset.link = it.link; ff.dataset.i = String(flowFeat);
-        const h = flowHue(it);
-        ff.style.setProperty("--h", String(h));
-        ff.innerHTML = `<img src="${esc(it.image)}" alt="" referrerpolicy="no-referrer" onerror="flowBad.add(this.src);this.closest('.ff').hidden=true"><span class="fg">${esc(genres[it.genre]?.label || "")}</span><b>${esc(it.title)}</b>`;
-        ff.classList.remove("in"); void ff.offsetWidth; ff.classList.add("in");
-      }
-      ff.dataset.i = String(flowFeat);
-      ff.hidden = false;
-      ff.style.transform = `translate(-50%,-50%) translate(${fq.x.toFixed(1)}px,${fq.y.toFixed(1)}px) scale(${Math.min(fq.sc * 0.95, 1.2).toFixed(3)})`; // 大きくなりすぎてスマホの画面からはみ出さないように上限
-      ff.style.opacity = Math.min(1, (flowOp[flowFeat] ?? 0) + 0.2).toFixed(3);
-    } else { ff.hidden = true; ff.dataset.link = ""; }
-    // 3) 手前のものから順に、すでに出ているタイトルと大きく重なるものは薄くして消す（ぎゅっと重ならないように）
+    // 2) 手前のものから順に、すでに出ているタイトルと大きく重なるものは薄くして消す（ぎゅっと重ならないように）
     const order = pr.slice().sort((p, q) => q.d - p.d);
     const placed = [];
-    if (fq) { const fk = Math.min(fq.sc * 0.95, 1.2), w = 230 * fk, h = 170 * fk; placed.push({ x0: fq.x - w / 2, x1: fq.x + w / 2, y0: fq.y - h / 2, y1: fq.y + h / 2, a: w * h }); }
     for (const q of order) {
       const el = flowEls[q.i];
       if (!flowW[q.i]) flowW[q.i] = el.offsetWidth || 200;
       const w = flowW[q.i] * q.sc, h = base * 1.5 * q.sc;
       let target = q.op;
-      if (fq && q.i === flowFeat) target = 0; // カードになったものは、元のタイトルを消す
-      else if (target > 0.25) {
+      if (target > 0.25) {
         const bx0 = q.x - w / 2, bx1 = q.x + w / 2, by0 = q.y - h / 2, by1 = q.y + h / 2;
         for (const o of placed) {
           const ox = Math.min(bx1, o.x1) - Math.max(bx0, o.x0), oy = Math.min(by1, o.y1) - Math.max(by0, o.y0);
@@ -568,7 +538,7 @@ function runFlow() {
   let sx = 0, sy = 0, lx = 0, ly = 0, lt = 0, moved = 0, downEl = null;
   box.addEventListener("pointerdown", (e) => {
     if (e.target.closest(".fclose")) return;
-    flowRot.drag = true; moved = 0; downEl = e.target.closest(".sp, .ff");
+    flowRot.drag = true; moved = 0; downEl = e.target.closest(".sp");
     sx = lx = e.clientX; sy = ly = e.clientY; lt = performance.now();
     try { box.setPointerCapture(e.pointerId); } catch {}
   });

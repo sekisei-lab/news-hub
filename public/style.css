@@ -283,13 +283,6 @@ body.flowing { overflow: hidden; }
 #flowcv { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 #flowsp { position: absolute; inset: 0; }
 .flow .sp { text-shadow: none; }
-.ff { position: absolute; left: 0; top: 0; z-index: 150; width: 230px; padding: 7px; border-radius: 14px; cursor: pointer; background: rgba(10, 18, 50, .72); border: 1px solid hsla(var(--h, 200), 100%, 70%, .7); box-shadow: 0 0 18px hsla(var(--h, 200), 100%, 60%, .55), inset 0 0 14px hsla(var(--h, 200), 100%, 60%, .18); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: #fff; text-align: left; will-change: transform, opacity; }
-.ff[hidden] { display: none; }
-.ff.in { animation: ffin .45s ease; }
-@keyframes ffin { from { filter: brightness(2.2) blur(3px); } to { filter: none; } }
-.ff img { display: block; width: 100%; height: 118px; object-fit: cover; border-radius: 9px; }
-.ff .fg { position: absolute; top: 12px; left: 12px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: hsla(var(--h, 200), 100%, 45%, .9); color: #fff; }
-.ff b { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 6px; font-size: 13px; line-height: 1.35; text-shadow: 0 0 8px hsla(var(--h, 200), 100%, 60%, .8); }
 #flowclock { position: absolute; left: 0; right: 0; bottom: 2.5vh; text-align: center; pointer-events: none; color: #d6e8ff; text-shadow: 0 0 12px rgba(90, 170, 255, .9), 0 0 30px rgba(60, 140, 255, .55); line-height: 1.1; }
 #flowclock b { display: block; font-size: clamp(34px, 8vh, 72px); font-weight: 300; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
 #flowclock span { display: block; margin-top: 2px; font-size: clamp(12px, 2vh, 16px); letter-spacing: .12em; opacity: .85; }
