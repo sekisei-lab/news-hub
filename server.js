@@ -285,15 +285,22 @@ async function refresh() {
       if (t < cutoff || i.source === "Investing.com") archive.delete(key); // Investing.comはカードにせず、専用の帯だけで見せる
       else lists[i.genre].push({ ...i, time: t });
     }
-    { // Australia: SMH/The Age/Brisbane Times/WAtoday等は同じ記事を配信するので、同じタイトルは1件にまとめる
-      const rank = (src) => { const k = ["ABC", "SBS", "The Guardian", "The Conversation", "SMH", "The Sydney", "The Age", "Brisbane", "WAtoday", "The Canberra"].findIndex((p) => src.startsWith(p)); return k < 0 ? 99 : k; };
-      const best = new Map();
-      for (const i of lists.australia) {
-        const k = i.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-        const b = best.get(k);
-        if (!b || rank(i.source) < rank(b.source)) best.set(k, i);
+    { // 同じ出来事の重複記事（配信元違い・見出しの微差）は1件にまとめる
+      const auRank = (src) => { const k = ["ABC", "SBS", "The Guardian", "The Conversation", "SMH", "The Sydney", "The Age", "Brisbane", "WAtoday", "The Canberra"].findIndex((p) => src.startsWith(p)); return k < 0 ? 99 : k; };
+      const norm = (t) => t.toLowerCase().replace(/[(（【][^)）】]*[)）】]\s*$/, "").replace(/[^\p{L}\p{N}]+/gu, "");
+      const grams = (t) => { const set = new Set(); for (let k = 0; k < t.length - 1; k++) set.add(t.slice(k, k + 2)); return set; };
+      const sim = (a, b) => { let n = 0; for (const x of a) if (b.has(x)) n++; return n / (a.size + b.size - n || 1); };
+      for (const g in lists) {
+        const kept = [];
+        for (const i of lists[g].sort((a, b) => b.time - a.time)) {
+          const n = norm(i.title), gr = grams(n);
+          const hit = kept.find((k) => k.n === n || (gr.size > 6 && k.gr.size > 6 && sim(gr, k.gr) >= 0.7));
+          if (!hit) { kept.push({ i, n, gr }); continue; }
+          const better = g === "australia" ? auRank(i.source) < auRank(hit.i.source) : !hit.i.image && i.image;
+          if (better) hit.i = i;
+        }
+        lists[g] = kept.map((k) => k.i);
       }
-      lists.australia = [...best.values()];
     }
     for (const g in lists) lists[g] = lists[g].sort((a, b) => b.time - a.time).slice(0, g === "australia" ? 900 : MAX_PER_GENRE);
     const needsDesc = (i) => !i.desc || GENERIC_DESC.test(i.desc) || i.desc === i.title;
