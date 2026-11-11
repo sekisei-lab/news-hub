@@ -645,7 +645,7 @@ async function getSuvUsed() {
   await Promise.all(Array.from({ length: 3 }, async () => {
     while (next < targets.length) {
       const r = targets[next++];
-      let avg = null, gen = "", img = "";
+      let avg = null, gen = "", img = "", size = null;
       if (/^[A-Z]{2}_S\d+$/.test(r.code || "")) {
         try {
           const html = await fetchText(`https://www.carsensor.net/usedcar/souba/${r.code}/`, 12000);
@@ -658,10 +658,20 @@ async function getSuvUsed() {
             gen = ((/<p><a [^>]*>([^<]*)<\/a><\/p>/.exec(blk) || [])[1] || "").trim();
             const im = (/data-original="([^"]+)"/.exec(blk) || [])[1] || "";
             img = im.startsWith("//") ? "https:" + im : im;
+            // 同じ世代のカタログページから、全長・全幅・全高（m）を読む
+            const cat = (/location\.href='(\/catalog\/[^']+)'/.exec(blk) || [])[1];
+            if (cat) {
+              try {
+                const text = (await fetchText(`https://www.carsensor.net${cat}`, 12000)).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+                const pick = (k) => { const x = new RegExp(k + "\\s*([\\d.]+)\\s*m").exec(text); if (!x) return null; const v = Number(x[1]); return v > 100 ? Math.round(v) / 1000 : v; }; // mm表記が混ざるものはmに直す
+                size = { len: pick("全長"), wid: pick("全幅"), hei: pick("全高") };
+                if (!size.len || !size.wid || !size.hei) size = null;
+              } catch {}
+            }
           }
         } catch {}
       }
-      out.push({ rank: r.rank, name: r.name, avg, gen, img, link: r.code ? `https://www.carsensor.net/usedcar/souba/${r.code}/` : "", imp: !JP_MAKERS.some((mk) => r.name.startsWith(mk)) });
+      out.push({ rank: r.rank, name: r.name, avg, gen, img, size, link: r.code ? `https://www.carsensor.net/usedcar/souba/${r.code}/` : "", imp: !JP_MAKERS.some((mk) => r.name.startsWith(mk)) });
     }
   }));
   out.sort((a, b) => a.rank - b.rank);

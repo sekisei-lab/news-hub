@@ -276,3 +276,4 @@ body.flowing { overflow: hidden; }
 /* 横長のシンボル（ダイハツ） */
 .lg.wide { width: 34px; height: 14px; vertical-align: -2px; }
 .svc h3 .lg.wide { width: 50px; height: 20px; vertical-align: -3px; }
+.suvpanel .ssz { font-size: 10.5px; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }

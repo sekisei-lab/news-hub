@@ -233,7 +233,7 @@ async function loadSuv() {
     if (tab !== "suv") return;
     suvList = d.used || [];
     if (!suvList.length) { box.hidden = true; suvAt = 0; return; }
-    const chip = (c) => { const m = makerOf(c.name); return `<button type="button" class="sc" data-i="${suvList.indexOf(c)}" title="${esc(c.name)}"><span class="sr">${c.rank}位</span><span class="scn">${makerMark(m)}<span class="sn">${esc(m ? c.name.slice(m.jp.length).trim() : c.name)}</span></span><b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b></button>`; };
+    const chip = (c) => { const m = makerOf(c.name); return `<button type="button" class="sc" data-i="${suvList.indexOf(c)}" title="${esc(c.name)}"><span class="sr">${c.rank}位</span><span class="scn">${makerMark(m)}<span class="sn">${esc(m ? c.name.slice(m.jp.length).trim() : c.name)}</span></span><b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b>${c.size ? `<span class="ssz">長${c.size.len} 幅${c.size.wid} 高${c.size.hei} m</span>` : ""}</button>`; };
     const grp = (label, list) => list.length ? `<div class="sg"><span class="sl">${label}</span><div class="sgrid">${list.map(chip).join("")}</div></div>` : "";
     box.innerHTML = `<div class="st">全長4,600mm以下・現行型の中古平均価格（カーセンサー）<small>車種をタップすると画像が見られます</small></div>${grp("国産", suvList.filter((c) => !c.imp))}${grp("外車", suvList.filter((c) => c.imp))}`;
     box.hidden = false;
@@ -253,7 +253,7 @@ const makerMark = (m) => !m ? "" : m.slug
   : `<span class="lgt">${esc(m.jp)}</span>`;
 function openSuv(c) {
   const v = $("suvview");
-  v.innerHTML = `<div class="svc"><button type="button" class="svx" aria-label="閉じる">✕</button>${c.img ? `<img class="svi" src="${esc(c.img)}" alt="${esc(c.name)}" referrerpolicy="no-referrer">` : '<div class="svi none">画像がありません</div>'}<h3>${makerMark(makerOf(c.name))}${esc(c.name)}</h3><p class="svp">${c.avg ? `現行型の中古車平均価格 <b>${c.avg}万円</b>` : "相場の情報がありません"}</p><p class="svg">${esc(c.gen || "")}${c.gen ? "　／　" : ""}人気ランキング ${c.rank}位</p>${c.link ? `<a class="svl" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">カーセンサーで相場を見る ↗</a>` : ""}</div>`;
+  v.innerHTML = `<div class="svc"><button type="button" class="svx" aria-label="閉じる">✕</button>${c.img ? `<img class="svi" src="${esc(c.img)}" alt="${esc(c.name)}" referrerpolicy="no-referrer">` : '<div class="svi none">画像がありません</div>'}<h3>${makerMark(makerOf(c.name))}${esc(c.name)}</h3><p class="svp">${c.avg ? `現行型の中古車平均価格 <b>${c.avg}万円</b>` : "相場の情報がありません"}</p>${c.size ? `<p class="svg">サイズ　全長${c.size.len}m × 全幅${c.size.wid}m × 全高${c.size.hei}m</p>` : ""}<p class="svg">${esc(c.gen || "")}${c.gen ? "　／　" : ""}人気ランキング ${c.rank}位</p>${c.link ? `<a class="svl" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">カーセンサーで相場を見る ↗</a>` : ""}</div>`;
   v.hidden = false;
 }
 $("suvpanel").addEventListener("click", (e) => {
