@@ -233,15 +233,25 @@ async function loadSuv() {
     if (tab !== "suv") return;
     suvList = d.used || [];
     if (!suvList.length) { box.hidden = true; suvAt = 0; return; }
-    const chip = (c) => `<button type="button" class="sc" data-i="${suvList.indexOf(c)}"><span class="scn">${c.rank}位 ${esc(c.name)}</span><b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b></button>`;
+    const chip = (c) => { const m = makerOf(c.name); return `<button type="button" class="sc" data-i="${suvList.indexOf(c)}" title="${esc(c.name)}"><span class="scn">${c.rank}位 ${makerMark(m)}${esc(m ? c.name.slice(m.jp.length).trim() : c.name)}</span><b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b></button>`; };
     const grp = (label, list) => list.length ? `<div class="sg"><span class="sl">${label}</span>${list.map(chip).join("")}</div>` : "";
     box.innerHTML = `<div class="st">全長4,600mm以下・現行型の中古平均価格（カーセンサー）<small>車種をタップすると画像が見られます</small></div>${grp("国産", suvList.filter((c) => !c.imp))}${grp("外車", suvList.filter((c) => c.imp))}`;
     box.hidden = false;
   } catch { suvAt = 0; }
 }
+// メーカー名 → ロゴ（Simple Icons のSVGを logos/ に置いて配信）。ロゴがないメーカーは、短い文字のバッジにする
+const MAKERS = [
+  ["トヨタ", "toyota"], ["ホンダ", "honda"], ["スズキ", "suzuki"], ["マツダ", "mazda"], ["三菱", "mitsubishi"], ["日産", "nissan"], ["スバル", "subaru"], ["ダイハツ", ""], ["レクサス", ""],
+  ["ミニ", "mini"], ["ボルボ", "volvo"], ["ジープ", "jeep"], ["メルセデス・ベンツ", "mercedes"], ["フォルクスワーゲン", "volkswagen"], ["BMW", "bmw"], ["アウディ", "audi"],
+  ["プジョー", "peugeot"], ["ルノー", "renault"], ["フィアット", "fiat"], ["アバルト", ""], ["ヒョンデ", "hyundai"], ["ランドローバー", "landrover"], ["シトロエン", "citroen"], ["アルファロメオ", "alfaromeo"], ["BYD", ""],
+].map(([jp, slug]) => ({ jp, slug }));
+const makerOf = (name) => MAKERS.find((m) => name.startsWith(m.jp));
+const makerMark = (m) => !m ? "" : m.slug
+  ? `<img class="lg" src="logos/${m.slug}.svg" alt="${esc(m.jp)}" width="18" height="18" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(m.jp)} '))">`
+  : `<span class="lgt">${esc(m.jp)}</span>`;
 function openSuv(c) {
   const v = $("suvview");
-  v.innerHTML = `<div class="svc"><button type="button" class="svx" aria-label="閉じる">✕</button>${c.img ? `<img class="svi" src="${esc(c.img)}" alt="${esc(c.name)}" referrerpolicy="no-referrer">` : '<div class="svi none">画像がありません</div>'}<h3>${esc(c.name)}</h3><p class="svp">${c.avg ? `現行型の中古車平均価格 <b>${c.avg}万円</b>` : "相場の情報がありません"}</p><p class="svg">${esc(c.gen || "")}${c.gen ? "　／　" : ""}人気ランキング ${c.rank}位</p>${c.link ? `<a class="svl" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">カーセンサーで相場を見る ↗</a>` : ""}</div>`;
+  v.innerHTML = `<div class="svc"><button type="button" class="svx" aria-label="閉じる">✕</button>${c.img ? `<img class="svi" src="${esc(c.img)}" alt="${esc(c.name)}" referrerpolicy="no-referrer">` : '<div class="svi none">画像がありません</div>'}<h3>${makerMark(makerOf(c.name))}${esc(c.name)}</h3><p class="svp">${c.avg ? `現行型の中古車平均価格 <b>${c.avg}万円</b>` : "相場の情報がありません"}</p><p class="svg">${esc(c.gen || "")}${c.gen ? "　／　" : ""}人気ランキング ${c.rank}位</p>${c.link ? `<a class="svl" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">カーセンサーで相場を見る ↗</a>` : ""}</div>`;
   v.hidden = false;
 }
 $("suvpanel").addEventListener("click", (e) => {
