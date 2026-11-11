@@ -26,3 +26,5 @@ Render → New → Blueprint でこのリポジトリを選ぶ（`render.yaml` �
 ## 媒体・ジャンルの変更
 
 `server.js` の `FEEDS` を編集。
+
+<!-- auto-deploy check -->
