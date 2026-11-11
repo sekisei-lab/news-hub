@@ -236,7 +236,7 @@ async function loadSuv() {
     if (!suvList.length) { box.hidden = true; suvAt = 0; return; }
     const chip = (c) => { const m = makerOf(c.name); return `<button type="button" class="sc" data-i="${suvList.indexOf(c)}" title="${esc(c.name)}"><span class="sr">${c.rank}位</span><span class="scn">${makerMark(m)}<span class="sn">${esc(m ? c.name.slice(m.jp.length).trim() : c.name)}</span></span><b class="pr">${c.avg ? `平均${c.avg}万円` : "相場なし"}</b>${c.size ? `<span class="ssz">${szf(c.size)}</span>` : ""}</button>`; };
     const grp = (label, list) => list.length ? `<div class="sg"><span class="sl">${label}</span><div class="sgrid">${list.map(chip).join("")}</div></div>` : "";
-    box.innerHTML = `<div class="st">全長4,600mm以下・現行型の中古平均価格（カーセンサー）<small>下段は 全長×全幅×全高　／　車種をタップすると画像が見られます</small></div>${grp("国産", suvList.filter((c) => !c.imp))}${grp("外車", suvList.filter((c) => c.imp))}`;
+    box.innerHTML = `<div class="st">全長4.60m以下・現行型の中古平均価格</div>${grp("国産", suvList.filter((c) => !c.imp))}${grp("外車", suvList.filter((c) => c.imp))}`;
     box.hidden = false;
   } catch { suvAt = 0; }
 }
@@ -309,7 +309,7 @@ async function loadInsider() {
     insiderItems = d.items || [];
     if (!insiderItems.length) { box.hidden = true; insiderAt = 0; return; }
     insiderIdx = 0;
-    box.innerHTML = '<span class="hl">インサイダー取引</span><span class="hs2">Investing.com</span><button type="button" class="ib"></button><span class="ic"></span>';
+    box.innerHTML = '<span class="hs2">Investing.com</span><button type="button" class="ib"></button><span class="ic"></span>';
     box.hidden = false;
     showInsider();
     clearInterval(insiderTimer);
