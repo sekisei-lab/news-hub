@@ -631,10 +631,23 @@ async function getUsedCar() {
   } catch {}
   return usedCarCache.data;
 }
-// 小型SUV: 人気ランキングにある対象車種ごとに、相場ページから「現行型」の中古車平均価格を読む（12時間キャッシュ）
-let suvUsedCache = { at: 0, data: [] };
+// 小型SUV: 人気ランキングにある対象車種ごとに、相場ページから「現行型」の中古車平均価格を読む。
+// 読み込みに1分以上かかるので、画面には「前回の結果」をすぐ返し、最新の取得は裏で行う。
+// サーバーの再起動直後は、リポジトリに入れた保存データ（suv-snapshot.json）をそのまま使う。
+const SUV_SNAP = path.join(__dirname, "suv-snapshot.json");
+let suvUsedCache = { at: 0, data: [] }, suvBusy = null;
+try { const snap = JSON.parse(fs.readFileSync(SUV_SNAP, "utf8")); if (Array.isArray(snap.data) && snap.data.length) suvUsedCache = { at: 0, data: snap.data }; } catch {} // at:0 = 古いが使える
+function refreshSuvUsed() {
+  if (!suvBusy) suvBusy = computeSuvUsed().then((d) => { if (d.length) suvUsedCache = { at: Date.now(), data: d }; }).catch(() => {}).finally(() => { suvBusy = null; });
+  return suvBusy;
+}
 async function getSuvUsed() {
-  if (suvUsedCache.data.length && Date.now() - suvUsedCache.at < 12 * 60 * 60 * 1000) return suvUsedCache.data;
+  const c = suvUsedCache;
+  if (c.data.length) { if (Date.now() - c.at > 6 * 60 * 60 * 1000) refreshSuvUsed(); return c.data; } // すぐ返す。古ければ裏で更新
+  await refreshSuvUsed(); // 保存データもないときだけ、取得を待つ
+  return suvUsedCache.data;
+}
+async function computeSuvUsed() {
   const used = await getUsedCar().catch(() => null);
   const all = ((used && used.all) || []).filter((r) => SUV_MODEL_RE.test(r.name));
   const isJp = (n) => JP_MAKERS.some((mk) => n.startsWith(mk));
@@ -674,8 +687,7 @@ async function getSuvUsed() {
     }
   }));
   out.sort((a, b) => a.rank - b.rank);
-  if (out.length) suvUsedCache = { at: Date.now(), data: out };
-  return suvUsedCache.data;
+  return out;
 }
 const NEWCAR_RE = /新型|新車|発売|発表|フルモデルチェンジ|マイナーチェンジ|一部改良|ワールドプレミア|世界初公開|初公開|予約開始|受注開始|価格|登場|デビュー|ティザー|公開/;
 function getNewCarNews() {
@@ -816,4 +828,6 @@ server.listen(PORT, () => {
   console.log(`News Hub on :${PORT}`);
   refresh();
   setInterval(refresh, REFRESH_MS);
+  setTimeout(refreshSuvUsed, 8000); // 小型SUVの中古車相場は、起動の少しあとに、裏で最新にする
+  setInterval(refreshSuvUsed, 6 * 60 * 60 * 1000);
 });
