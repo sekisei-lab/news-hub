@@ -22,14 +22,17 @@
   };
 
   const mk = new Map(); // "ja>en" -> Promise<Translator|null>
+  const failed = new Map(); // 失敗した組み合わせは30秒のあいだ試し直さない（記事ごとに待たされないように）
   function engine(s, t) {
     const key = `${s}>${t}`;
+    if (Date.now() - (failed.get(key) || 0) < 30000) return Promise.resolve(null);
     if (!mk.has(key)) {
       mk.set(key, (async () => {
         try {
-          const av = await Promise.race([Translator.availability({ sourceLanguage: s, targetLanguage: t }), new Promise((r) => setTimeout(() => r("unavailable"), 4000))]);
+          const av = await Promise.race([Translator.availability({ sourceLanguage: s, targetLanguage: t }), new Promise((r) => setTimeout(() => r("timeout"), 4000))]);
+          if (av === "timeout") { mk.delete(key); failed.set(key, Date.now()); return null; }
           if (av === "unavailable") return null;
-          if (av !== "available" && !navigator.userActivation?.isActive) { mk.delete(key); return null; } // ダウンロードにはボタン操作が必要
+          if (av !== "available" && !navigator.userActivation?.isActive) { mk.delete(key); failed.set(key, Date.now()); return null; } // ダウンロードにはボタン操作が必要
           setStatus("翻訳データを準備中…");
           const tr = await Translator.create({
             sourceLanguage: s, targetLanguage: t,
@@ -37,7 +40,7 @@
           });
           setStatus("");
           return tr;
-        } catch { mk.delete(key); setStatus(""); return null; }
+        } catch { mk.delete(key); failed.set(key, Date.now()); setStatus(""); return null; }
       })());
     }
     return mk.get(key);
@@ -109,13 +112,14 @@
   }, { rootMargin: "700px 0px" });
   const seen = new WeakSet();
   let chain = Promise.resolve();
-  const queue = (el) => { chain = chain.then(() => apply(el)).catch(() => {}); };
+  const queue = (el) => { chain = chain.then(() => apply(el)).catch((e) => console.error("translate", e)); };
+  const near = (el) => el.getBoundingClientRect().top < innerHeight * 2.5; // 画面付近のカードは、観察を待たずすぐ訳す
 
   function scan(root) {
     if (!lang && !root.__force) return;
     const list = root.nodeType === 1 ? [...(root.matches?.(SEL) ? [root] : []), ...root.querySelectorAll(SEL)] : [];
     for (const el of list) {
-      if (el.closest(".card")) { if (!seen.has(el)) { seen.add(el); } io.observe(el); }
+      if (el.closest(".card")) { if (near(el)) queue(el); else io.observe(el); }
       else queue(el);
     }
   }
@@ -143,28 +147,44 @@
   }, true);
 
   function refreshAll() {
-    for (const el of document.querySelectorAll(SEL)) { if (el.closest(".card")) io.observe(el); else queue(el); }
+    for (const el of document.querySelectorAll(SEL)) { if (el.closest(".card") && !near(el)) io.observe(el); else queue(el); }
     if (!lang) document.querySelectorAll(".orig").forEach((o) => o.remove());
   }
 
+  // ボタンは1つ。原文が日本語のタブ：原→中→EN、英語のタブ（Australia）：原→日→中
+  const enTab = () => typeof genres !== "undefined" && typeof tab !== "undefined" && !!genres[tab]?.en;
+  const seq = () => (enTab() ? [null, "ja", "zh"] : [null, "zh", "en"]);
+  const NAME = { ja: "日", zh: "中", en: "EN" };
+  const btn = box.querySelector("button");
   function paint() {
-    box.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.l === lang));
+    btn.textContent = "🌐 " + (lang ? NAME[lang] : "原");
+    btn.classList.toggle("on", !!lang);
+    btn.title = "翻訳の切り替え（原文 → " + seq().slice(1).map((l) => NAME[l]).join(" → ") + "）";
   }
-  box.addEventListener("click", async (e) => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    lang = lang === b.dataset.l ? null : b.dataset.l;
+  async function setLang(next) {
+    lang = next;
+    failed.clear(); // ボタンを押したときは、必ず試し直す
     put("newshub.lang", lang);
     paint();
     document.querySelectorAll(".orig").forEach((o) => o.remove());
     document.querySelectorAll("[data-orig]").forEach((h) => delete h.dataset.orig);
     if (lang) { // ボタン操作の直後にだけ、翻訳データのダウンロードを始められる
-      for (const s of SRC) if (s !== TARGET_CODE[lang]) engine(s, TARGET_CODE[lang]);
-      const got = await Promise.all(SRC.filter((s) => s !== TARGET_CODE[lang]).map((s) => engine(s, TARGET_CODE[lang])));
+      const srcs = SRC.filter((s) => s !== TARGET_CODE[lang]);
+      const got = await Promise.all(srcs.map((s) => engine(s, TARGET_CODE[lang])));
       if (!got.some(Boolean)) { setStatus("このブラウザでは翻訳できません"); setTimeout(() => setStatus(""), 4000); }
     }
     refreshAll();
+  }
+  btn.addEventListener("click", () => {
+    const q = seq();
+    const i = q.indexOf(lang);
+    setLang(q[(i + 1) % q.length]); // 現在の言語がこのタブの順番にない場合は、原文から
   });
+  // タブを切り替えたとき、そのタブで使えない言語（日本語タブでの日など）なら原文に戻す
+  new MutationObserver(() => {
+    paint();
+    if (lang && !seq().includes(lang)) setLang(null);
+  }).observe($("tabs"), { childList: true, attributes: true, subtree: true, attributeFilter: ["class"] });
   paint();
-  if (lang) setTimeout(refreshAll, 300);
+  if (lang) setTimeout(() => { if (!seq().includes(lang)) setLang(null); else refreshAll(); }, 400);
 })();
