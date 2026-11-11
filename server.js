@@ -28,7 +28,6 @@ const GENRES = {
   health: { label: "健康" },
   travel: { label: "旅行" },
   game: { label: "ゲーム" },
-  watch: { label: "腕時計" },
 };
 
 // 広告・PR記事は除外

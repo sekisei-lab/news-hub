@@ -357,7 +357,7 @@ function flowTurn(rx, ry) {
 const flowGeo = { rx: 300, ry: 300 }; // いまの球の半径（ドラッグの回転量の計算に使う）
 const FLOW_AUTO = 0.11; // ふだんの回転（ラジアン/秒）。約57秒で一周
 // ジャンルごとのネオンの色（色相）
-const GENRE_HUE = { politics: 215, economy: 45, finance: 50, car: 20, suv: 20, cosme: 330, national: 190, world: 170, sports: 130, entertainment: 320, it: 195, science: 260, life: 90, gourmet: 25, health: 150, travel: 175, game: 275, watch: 40 };
+const GENRE_HUE = { politics: 215, economy: 45, finance: 50, car: 20, suv: 20, cosme: 330, national: 190, world: 170, sports: 130, entertainment: 320, it: 195, science: 260, life: 90, gourmet: 25, health: 150, travel: 175, game: 275 };
 const flowHue = (it) => GENRE_HUE[it.genre] ?? 200;
 function flowStyle(el, it) {
   const h = flowHue(it);

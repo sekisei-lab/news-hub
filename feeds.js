@@ -11,7 +11,6 @@ const GOURMET_KW = /グルメ|ラーメン|カフェ|レストラン|スイー�
 const HEALTH_KW = /健康|医療|病気|がん|ダイエット|睡眠|ワクチン|感染|症状|認知症|医師|病院|薬|うつ|糖尿|血圧|筋トレ|ストレス|インフル|栄養/;
 const TRAVEL_KW = /旅行|観光|温泉|ホテル|旅館|空港|航空|新幹線|ツアー|訪日|インバウンド|絶景|旅/;
 const GAME_KW = /ゲーム|Switch|PS5|PlayStation|任天堂|ポケモン|eスポーツ|Steam/;
-const WATCH_KW = /腕時計|時計|ウォッチ|ロレックス|ROLEX|オメガ|OMEGA|セイコー|SEIKO|カシオ|G-SHOCK|カルティエ|パテック|タグ・ホイヤー|ブライトリング|グランドセイコー|ウブロ|IWC|シチズン|ハミルトン|ヴァシュロン|オーデマ/;
 
 const asahiAll = "https://www.asahi.com/rss/asahi/newsheadlines.rdf";
 const Y = (c) => `https://news.yahoo.co.jp/rss/categories/${c}.xml`;
@@ -127,17 +126,6 @@ const FEEDS = [
   // ゲーム
   { genre: "game", source: "4Gamer", url: "https://www.4gamer.net/rss/index.xml" },
   { genre: "game", source: "Yahoo!ニュース", url: Y("it"), filter: GAME_KW },
-  // 腕時計
-  { genre: "watch", source: "WATCHNAVI", url: "https://watchnavi.com/feed" },
-  { genre: "watch", source: "GQ JAPAN", url: "https://gqjapan.jp/feed", filter: WATCH_KW },
-  { genre: "watch", source: "FASHIONSNAP", url: "https://www.fashionsnap.com/rss.xml", filter: WATCH_KW },
-  { genre: "watch", source: "WWD JAPAN", url: YM("wwdjapan"), filter: WATCH_KW },
-  { genre: "watch", source: "VOGUE JAPAN", url: "https://www.vogue.co.jp/feed/rss", filter: WATCH_KW },
-  { genre: "watch", source: "Forbes JAPAN", url: YM("forbes"), filter: WATCH_KW },
-  { genre: "watch", source: "PRESIDENT Online", url: YM("president"), filter: WATCH_KW },
-  { genre: "watch", source: "Yahoo!ニュース", url: Y("life"), filter: WATCH_KW },
-  { genre: "watch", source: "Yahoo!ニュース", url: Y("business"), filter: WATCH_KW },
-  { genre: "watch", source: "Yahoo!ニュース", url: Y("entertainment"), filter: WATCH_KW },
 ];
 
 // ---- 特集: 全長4,600mm以下のコンパクトSUV（新車情報・中古情報）----
@@ -164,6 +152,33 @@ FEEDS.push(
   { genre: "suv", source: "グーネット", url: "https://www.goo-net.com/magazine/feed/", filter: SUV_RE },
   { genre: "suv", source: "WebCG", url: "https://www.webcg.net/list/feed/rss", filter: SUV_RE },
   { genre: "suv", source: "ベストカーWeb", url: "https://bestcarweb.jp/feed", filter: SUV_RE },
+);
+
+
+// ---- 情報量の底上げ: ジャンルに合う専門媒体（Yahoo!ニュース経由。1媒体あたり約50件）と、全国・地方のテレビ局の記事から、キーワードで拾う ----
+const SCIENCE_KW = /宇宙|ロケット|探査機|惑星|天文|彗星|流星群|月面|小惑星|JAXA|NASA|研究チーム|研究グループ|化石|恐竜|ノーベル賞|量子|iPS|ゲノム|気候変動|温暖化|地震|火山|噴火|絶滅|論文|素粒子|ブラックホール|核融合|発見され|新種/;
+const MORE = (genre, source, media, filter) => ({ genre, source, url: YM(media), filter });
+// 全国・地方のテレビ局、通信社（どのジャンルにも、キーワードで該当記事を拾う）
+const BROADCASTERS = [["ANN", "ann"], ["FNNプライム", "fnnprimev"], ["CNN", "cnn"], ["BBC", "bbc"], ["中京テレビ", "nbn"], ["MBS", "mbsnews"], ["MBC南日本放送", "mbcnews"], ["Tokai", "tokai"], ["KYT", "kyt"], ["withnews", "withnews"]];
+const GENRE_KW = { politics: POLITICS_KW, health: HEALTH_KW, travel: TRAVEL_KW, gourmet: GOURMET_KW, science: SCIENCE_KW };
+for (const [g, kw] of Object.entries(GENRE_KW)) for (const [src, m] of BROADCASTERS) FEEDS.push(MORE(g, src, m, kw));
+FEEDS.push(
+  // 政治
+  MORE("politics", "選挙ドットコム", "senkyocom"), MORE("politics", "Yahoo!ニュース世論調査", "yjyoron"), MORE("politics", "野村総研", "nrin", POLITICS_KW),
+  // 健康（専門媒体）
+  MORE("health", "メディカルドック", "medicald"), MORE("health", "Medical DOC", "medical"), MORE("health", "健康産業速報", "kenkosoku"), MORE("health", "健康産業新聞", "kenkoshin"), MORE("health", "日経Goody", "gooday"),
+  MORE("health", "FITNESS LOVE", "fitlove"), MORE("health", "ヨガジャーナル", "yogajol"), MORE("health", "Tarzan", "tarzanweb", HEALTH_KW), MORE("health", "Women's Health", "womensh", HEALTH_KW), MORE("health", "kosodate", "kosodate", HEALTH_KW),
+  // 旅行
+  MORE("travel", "トラベル Watch", "travelv"), MORE("travel", "旅行読売", "ryokoyom"), MORE("travel", "日経スタイル", "nikkeisty", TRAVEL_KW), MORE("travel", "Hanako", "hanako", TRAVEL_KW), MORE("travel", "Lmaga", "lmaga", TRAVEL_KW),
+  MORE("travel", "共同通信", "kyodonews", TRAVEL_KW), { genre: "travel", source: "朝日新聞", url: asahiAll, filter: TRAVEL_KW },
+  // コスメ・美容
+  MORE("cosme", "MAQUIA", "maquia"), MORE("cosme", "VOCE", "voce"), MORE("cosme", "美的", "biteki"),
+  ...[["mimollet", "mimollet"], ["cancam", "CanCam"], ["ellegirl", "ELLE girl"], ["elleonline", "ELLE"], ["spur", "SPUR"], ["baila", "BAILA"], ["eclat", "éclat"], ["withonline", "with"], ["ananweb", "anan"], ["bazaar", "Harper's BAZAAR"], ["gisele", "GISELe"], ["nonno", "non-no"], ["lee", "LEE"], ["gingerweb", "GINGER"]].map(([m, n]) => MORE("cosme", n, m, COSME_KW)),
+  // グルメ
+  MORE("gourmet", "食べログマガジン", "tabelog"), MORE("gourmet", "食楽web", "syokuraku"), MORE("gourmet", "食品新聞", "shokuhin"), MORE("gourmet", "グルメ Watch", "impgrw"), MORE("gourmet", "dancyu", "dancyu"),
+  MORE("gourmet", "Hanako", "hanako", GOURMET_KW), MORE("gourmet", "Goethe", "goethe", GOURMET_KW), MORE("gourmet", "Lmaga", "lmaga", GOURMET_KW), MORE("gourmet", "共同通信", "kyodonews", GOURMET_KW),
+  // 科学
+  MORE("science", "sorae", "sorae_jp"), MORE("science", "ナショジオ", "nknatiogeo"), MORE("science", "共同通信", "kyodonews", SCIENCE_KW), { genre: "science", source: "朝日新聞", url: asahiAll, filter: SCIENCE_KW },
 );
 
 module.exports = { FEEDS, SUV_MODEL_RE };
