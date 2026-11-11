@@ -398,30 +398,46 @@ function leaveFlow() {
   const box = $("flow"), fade = $("flowfade"), btn = box.querySelector(".fclose");
   const W = box.clientWidth, H = box.clientHeight;
   const br = btn.getBoundingClientRect();
-  const x0 = br.left + br.width / 2, y0 = br.top + br.height / 2; // 流れ星はボタンから出る
-  const x1 = W * 0.18, y1 = H * 0.98; // 左下へ落ちる
-  const ang = Math.atan2(y1 - y0, x1 - x0);
-  const mk = (len, thick, delay, dur, scale) => {
+  const bx = br.left + br.width / 2, by = br.top + br.height / 2; // 1本目はボタンから出る
+  const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
+  const TINTS = ["255,255,255", "190,220,255", "255,236,190", "210,200,255"];
+  // 流れ星を1本つくる。出る場所・向き・曲がり方・長さ・太さ・速さ・色を、そのつど乱数で決める
+  const mk = (ox, oy, delay, main) => {
+    const len = main ? rnd(190, 260) : rnd(70, 230), thick = main ? rnd(3.5, 5) : rnd(1.5, 3.5);
+    const dur = rnd(750, 1250), reach = Math.max(W, H) * rnd(0.45, 1.05);
+    const ang = rnd(0.45, 2.7); // 向き: 右下(約25°)から真下(90°)、左下(約155°)まで
+    const x1 = ox + Math.cos(ang) * reach, y1 = oy + Math.sin(ang) * reach;
+    const bend = rnd(-0.28, 0.28) * reach; // 進路の曲がり具合（まっすぐ〜大きく弧を描く）
+    const cx = (ox + x1) / 2 - Math.sin(ang) * bend, cy = (oy + y1) / 2 + Math.cos(ang) * bend;
+    const tint = TINTS[Math.floor(Math.random() * TINTS.length)];
     const el = document.createElement("div");
     el.className = "fstar";
-    el.style.cssText = "width:" + len + "px;height:" + thick + "px;left:" + (x0 - len) + "px;top:" + (y0 - thick / 2) + "px";
+    el.style.cssText = "width:" + len + "px;height:" + thick + "px;left:" + (ox - len) + "px;top:" + (oy - thick / 2) + "px;background:linear-gradient(90deg,rgba(" + tint + ",0),rgba(" + tint + ",.55) 55%,rgb(" + tint + "))";
     box.appendChild(el);
-    const dx = (x1 - x0) * scale, dy = (y1 - y0) * scale;
-    el.animate([
-      { transform: "translate(0,0) rotate(" + ang + "rad)", opacity: 0 },
-      { transform: "translate(" + dx * 0.08 + "px," + dy * 0.08 + "px) rotate(" + ang + "rad)", opacity: 1, offset: 0.08 },
-      { transform: "translate(" + dx + "px," + dy + "px) rotate(" + ang + "rad)", opacity: 0.9 },
-    ], { duration: dur, delay, easing: "cubic-bezier(.35,.1,.85,.55)", fill: "both" }).onfinish = () => el.remove();
+    const frames = [];
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10, u = 1 - t;
+      const px = u * u * ox + 2 * u * t * cx + t * t * x1, py = u * u * oy + 2 * u * t * cy + t * t * y1;
+      const tx = 2 * u * (cx - ox) + 2 * t * (x1 - cx), ty = 2 * u * (cy - oy) + 2 * t * (y1 - cy); // 進む向き
+      frames.push({ transform: "translate(" + (px - ox) + "px," + (py - oy) + "px) rotate(" + Math.atan2(ty, tx) + "rad)", opacity: i === 0 ? 0 : i === 1 ? 1 : 1 - t * 0.5, offset: t });
+    }
+    el.animate(frames, { duration: dur, delay, easing: "cubic-bezier(.35,.1,.85,.6)", fill: "both" }).onfinish = () => el.remove();
   };
-  mk(220, 4, 0, 1000, 1);        // 本体
-  mk(120, 2, 120, 900, 0.85);    // 小さな連れ
-  mk(80, 2, 240, 800, 0.7);
+  mk(bx, by, 0, true);
+  const n = 2 + Math.floor(Math.random() * 6); // 連れの数: 2〜7本（全体で3〜8本）
+  for (let i = 0; i < n; i++) {
+    // 出る場所: 画面の上の縁、または左右の縁のどこか
+    const side = Math.random();
+    const ox = side < 0.6 ? rnd(0, W) : side < 0.8 ? -10 : W + 10, oy = side < 0.6 ? rnd(-20, H * 0.18) : rnd(0, H * 0.55);
+    mk(ox, oy, rnd(0, 380), false);
+  }
   box.classList.add("leaving"); // 地球がすっと沈む
   btn.classList.add("go");
   setTimeout(() => { fade.classList.add("on"); }, 550); // 画面が暗くなる
   setTimeout(() => {
     tab = "all"; store.set("newshub.tab", "all"); renderTabs(); load(); // 通常の画面へ（この間は真っ暗）
     box.classList.remove("leaving"); btn.classList.remove("go");
+    box.querySelectorAll(".fstar").forEach((e) => e.remove()); // 残った流れ星を片づける
     setTimeout(() => { fade.classList.remove("on"); flowLeaving = false; }, 120); // 暗がりから通常の画面が現れる
   }, 1500);
 }
