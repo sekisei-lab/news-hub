@@ -752,7 +752,7 @@ function renderSettings() {
       </li>`)
     .join("");
 }
-function commitOrder(ids) { prefs.order = ids; savePrefs(); renderSettings(); render(); }
+function commitOrder(ids) { prefs.order = ids; savePrefs(); render(); } // 一覧は、動かした見た目のまま残す（作り直さない）
 
 $("tabList").addEventListener("click", (e) => {
   if (e.target.dataset.act !== "del") return;
@@ -764,42 +764,98 @@ $("tabList").addEventListener("click", (e) => {
   savePrefs(); renderSettings(); render();
 });
 
-// ドラッグで並び替え（行のどこでも押したまま動かせる。マウス・タッチ両対応）
-let dragLi = null, pend = null, moved = false;
-$("tabList").addEventListener("pointerdown", (e) => {
+// ドラッグで並び替え（iPhoneのホーム画面の並び替えのように）
+// - つかんだ項目は持ち上がって（少し大きく・傾いて・影つき）、指やマウスに追従する
+// - ほかの項目はゆらゆら揺れながら、なめらかに場所を譲る
+// - 離すと、すっと所定の位置に収まる
+// マウス: 少し動かすと持ち上がる。タッチ: 長押し（約0.25秒）で持ち上がる（それまでの縦のなぞりは、普通のスクロール）
+let dragLi = null, pend = null, moved = false, grab = { x: 0, y: 0 };
+const tl = () => $("tabList");
+const slotRect = (li, ulR) => ({ left: ulR.left + li.offsetLeft, top: ulR.top + li.offsetTop, right: ulR.left + li.offsetLeft + li.offsetWidth, bottom: ulR.top + li.offsetTop + li.offsetHeight, width: li.offsetWidth });
+function liftLi(p, e) {
+  clearTimeout(p.timer);
+  dragLi = p.li;
+  const ulR = tl().getBoundingClientRect();
+  grab = { x: p.x - ulR.left - dragLi.offsetLeft, y: p.y - ulR.top - dragLi.offsetTop };
+  dragLi.style.transition = "";
+  dragLi.classList.add("drag");
+  tl().classList.add("reordering");
+  [...tl().children].forEach((li) => { if (li !== dragLi) li.style.animationDelay = -Math.random() * 0.3 + "s"; });
+  try { tl().setPointerCapture(p.id); } catch {}
+  try { navigator.vibrate && navigator.vibrate(12); } catch {}
+  followLi(e);
+}
+function followLi(e) {
+  if (!dragLi) return;
+  const ulR = tl().getBoundingClientRect();
+  const tx = e.clientX - ulR.left - grab.x - dragLi.offsetLeft, ty = e.clientY - ulR.top - grab.y - dragLi.offsetTop;
+  dragLi.style.transform = "translate(" + tx + "px," + ty + "px)";
+}
+function reorderLi(e) {
+  const ul = tl(), ulR = ul.getBoundingClientRect();
+  const others = [...ul.children].filter((li) => li !== dragLi);
+  const next = others.find((li) => {
+    const r = slotRect(li, ulR);
+    // 2列の並びなので、行を上から・同じ行は左から数えて、ポインタより後ろの最初の項目の前に入れる
+    return e.clientY < r.top || (e.clientY <= r.bottom && e.clientX < r.left + r.width / 2);
+  }) || null;
+  if ((dragLi.nextElementSibling || null) === next) return;
+  // FLIP: 動く前の見た目の位置を覚え、並べ替えたあと、元の位置から新しい位置へ滑らせる
+  const first = new Map(others.map((li) => [li, li.getBoundingClientRect()]));
+  others.forEach((li) => li.getAnimations().forEach((an) => { if (an.id === "flip") an.cancel(); }));
+  ul.insertBefore(dragLi, next);
+  others.forEach((li) => {
+    const f = first.get(li), l = li.getBoundingClientRect();
+    const dx = f.left - l.left, dy = f.top - l.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    const an = li.animate([{ transform: "translate(" + dx + "px," + dy + "px)" }, { transform: "translate(0,0)" }], { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
+    an.id = "flip";
+  });
+  followLi(e);
+}
+tl().addEventListener("pointerdown", (e) => {
   if (e.button > 0 || e.target.closest("button")) return;
   const li = e.target.closest("li");
   if (!li) return;
-  pend = { li, y: e.clientY, id: e.pointerId };
+  pend = { li, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType === "touch", timer: 0 };
   moved = false;
+  if (pend.touch) { const p = pend; p.timer = setTimeout(() => { if (pend === p && !dragLi) liftLi(p, { clientX: p.x, clientY: p.y }); }, 250); }
 });
-$("tabList").addEventListener("pointermove", (e) => {
-  if (pend && !dragLi && Math.abs(e.clientY - pend.y) > 5) {
-    dragLi = pend.li;
-    dragLi.classList.add("drag");
-    $("tabList").setPointerCapture(pend.id);
+tl().addEventListener("pointermove", (e) => {
+  if (pend && !dragLi) {
+    const dist = Math.hypot(e.clientX - pend.x, e.clientY - pend.y);
+    if (pend.touch) { if (dist > 9) { clearTimeout(pend.timer); pend = null; } } // 長押しの前に動いたら、スクロールとして扱う
+    else if (dist > 4) liftLi(pend, e);
   }
   if (!dragLi) return;
   moved = true;
-  const others = [...$("tabList").children].filter((li) => li !== dragLi);
-  const next = others.find((li) => {
-    const r = li.getBoundingClientRect();
-    // 2列の並びなので、行を上から・同じ行は左から数えて、ポインタより後ろの最初の項目の前に入れる
-    return e.clientY < r.top || (e.clientY <= r.bottom && e.clientX < r.left + r.width / 2);
-  });
-  $("tabList").insertBefore(dragLi, next || null);
+  followLi(e);
+  reorderLi(e);
 });
 const endDrag = () => {
+  if (pend) clearTimeout(pend.timer);
   pend = null;
   if (!dragLi) return;
-  dragLi.classList.remove("drag");
+  const li = dragLi, ul = tl();
   dragLi = null;
-  commitOrder([...$("tabList").children].map((li) => li.dataset.id));
+  // すっと所定の位置に収まる
+  li.style.transition = "transform .24s cubic-bezier(.2,.8,.2,1)";
+  li.style.transform = "translate(0,0)";
+  li.classList.remove("drag");
+  setTimeout(() => {
+    li.style.transition = ""; li.style.transform = "";
+    ul.classList.remove("reordering");
+    [...ul.children].forEach((x) => { x.style.animationDelay = ""; });
+  }, 260);
+  commitOrder([...ul.children].map((x) => x.dataset.id));
 };
-$("tabList").addEventListener("pointerup", endDrag);
-$("tabList").addEventListener("pointercancel", endDrag);
+tl().addEventListener("pointerup", endDrag);
+tl().addEventListener("pointercancel", endDrag);
+// 持ち上げているあいだは、画面のスクロールを止める（タッチ）／長押しのメニューを出さない
+tl().addEventListener("touchmove", (e) => { if (dragLi) e.preventDefault(); }, { passive: false });
+tl().addEventListener("contextmenu", (e) => e.preventDefault());
 // ドラッグ直後のクリックでON/OFFが切り替わらないようにする
-$("tabList").addEventListener("click", (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
+tl().addEventListener("click", (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
 $("tabList").addEventListener("change", (e) => {
   if (e.target.dataset.act !== "vis") return;
   const li = e.target.closest("li");

@@ -305,3 +305,11 @@ body.flowing { overflow: hidden; }
 .flow:fullscreen { width: 100vw; height: 100vh; }
 .flowfade2 { position: absolute; inset: 0; z-index: 250; background: #000; opacity: 0; pointer-events: none; transition: opacity .7s ease; }
 .flowfade2.on { opacity: 1; }
+
+/* ジャンル設定の並び替え: iPhoneのホーム画面のような動き */
+#tabList { position: relative; }
+#tabList li { touch-action: pan-y; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition: background .15s, color .15s, scale .2s cubic-bezier(.3, 1.5, .5, 1), rotate .2s, box-shadow .2s; }
+#tabList li.drag { position: relative; z-index: 10; scale: 1.07; rotate: -1.5deg; opacity: 1; cursor: grabbing; box-shadow: 0 12px 26px rgba(0, 0, 0, .35); will-change: transform; }
+#tabList.reordering li:not(.drag) { animation: tlWiggle .26s ease-in-out infinite alternate; }
+@keyframes tlWiggle { from { rotate: -1.1deg; } to { rotate: 1.1deg; } }
+@media (prefers-reduced-motion: reduce) { #tabList.reordering li:not(.drag) { animation: none; } }
