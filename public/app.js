@@ -78,6 +78,8 @@ let shown = []; // いま画面に出している記事（カード番号と対�
 let total = 0; // 条件に合う記事の総数
 // 画像が表示できなかったら、サーバーに記事ページから取り直してもらう（1枚につき1回だけ）
 // 画像がないカード：ジャンルの色と媒体名の枠で、画像と同じ大きさの場所を埋める（通信なし・CSSだけ）
+// 記事が複数ジャンルに属するとき、開いているジャンルのタブではそのジャンル名を表示する（国際タブなのに「国内」と出ない）
+const effGenre = (i) => (tab !== "all" && i.genres && i.genres.includes(tab) ? tab : i.genre);
 const phHtml = (src, hue) => `<div class="thumb ph" style="--h:${hue}"><span>${esc(src)}</span></div>`;
 const toPh = (img) => { const card = img.closest(".card"); if (!card) return img.remove(); img.outerHTML = phHtml(card.dataset.src || "", card.dataset.h || 200); };
 window.retryImg = (img) => {
@@ -89,11 +91,11 @@ window.retryImg = (img) => {
     .then((d) => { if (d.image) img.src = d.image; else toPh(img); })
     .catch(() => toPh(img));
 };
-const cardHtml = (i, n) => `<div class="cell"><a class="card${readSet.has(i.link) ? " read" : ""}" data-n="${n}" data-src="${esc(i.source)}" data-h="${GENRE_HUE[i.genre] ?? 200}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
-        ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.classList.add('ld')" onerror="retryImg(this)">` : phHtml(i.source, GENRE_HUE[i.genre] ?? 200)}
+const cardHtml = (i, n) => `<div class="cell"><a class="card${readSet.has(i.link) ? " read" : ""}" data-n="${n}" data-src="${esc(i.source)}" data-h="${GENRE_HUE[effGenre(i)] ?? 200}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
+        ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.classList.add('ld')" onerror="retryImg(this)">` : phHtml(i.source, GENRE_HUE[effGenre(i)] ?? 200)}
         <h2>${esc(i.title)}</h2>
         <p>${esc(i.summary || "")}</p>
-        <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time, genres[i.genre]?.en)}</span></div>
+        <div class="meta"><span class="tag">${esc(genres[effGenre(i)]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time, genres[i.genre]?.en)}</span></div>
       </a></div>`;
 // 段組み（カードを一番低い列へ積む。順番は上から下へおおむね新しい順）
 let colCount = 0;
@@ -914,7 +916,7 @@ let readerToken = 0;
 function openReader(item) {
   const token = ++readerToken;
   $("rTitle").textContent = item.title;
-  $("rMeta").innerHTML = `<span class="tag">${esc(genres[item.genre]?.label || "")}</span><span>${esc(item.source)}</span><span>${ago(item.time, genres[item.genre]?.en)}</span>`;
+  $("rMeta").innerHTML = `<span class="tag">${esc(genres[effGenre(item)]?.label || "")}</span><span>${esc(item.source)}</span><span>${ago(item.time, genres[item.genre]?.en)}</span>`;
   $("rOrig2").href = item.link;
   const img = $("rImg");
   img.hidden = !item.image;
