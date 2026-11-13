@@ -924,7 +924,7 @@ function openReader(item) {
   $("rNote").textContent = "";
   const gal = $("rGal");
   gal.hidden = true; gal.innerHTML = "";
-  if (item.link.startsWith("https://kuruma-news.jp/post/")) loadGallery(item.link, token);
+  if (item.link.startsWith("https://kuruma-news.jp/post/") || item.link.startsWith("https://response.jp/article/")) loadGallery(item.link, token);
   $("reader").hidden = false;
   $("reader").scrollTop = 0;
   document.body.classList.add("noscroll");

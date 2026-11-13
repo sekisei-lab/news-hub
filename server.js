@@ -779,26 +779,41 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify(data));
   }
   if (url.pathname === "/api/gallery") {
-    // くるまのニュースの記事は、広告を除いた写真だけを一覧にして返す（一覧にある記事のみ・1時間キャッシュ）
+    // 写真つき記事（くるまのニュース・レスポンス）は、広告を除いた写真だけを一覧にして返す（一覧にある記事のみ・1時間キャッシュ）
     const link = url.searchParams.get("link") || "";
-    const m = /^https:\/\/kuruma-news\.jp\/post\/(\d+)/.exec(link);
+    const km = /^https:\/\/kuruma-news\.jp\/post\/(\d+)/.exec(link);
+    const rm = /^https:\/\/response\.jp\/article\/(\d{4}\/\d{2}\/\d{2}\/\d+)\.html/.exec(link);
     const known = Object.values(store.items).some((list) => list.some((i) => i.link === link));
     const out = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=600" };
-    if (!m || !known) { res.writeHead(200, out); return res.end('{"images":[]}'); }
+    if ((!km && !rm) || !known) { res.writeHead(200, out); return res.end('{"images":[]}'); }
     try {
-      const hit = galleryCache.get(m[1]);
+      const key = km ? "k" + km[1] : "r" + rm[1];
+      const hit = galleryCache.get(key);
       let images = hit && Date.now() - hit.at < 3600000 ? hit.images : null;
       if (!images) {
-        const html = await fetchText(`https://kuruma-news.jp/photo/${m[1]}`, 12000);
         images = [];
-        for (const part of html.split(/<div class="swiper-slide" data-history="/).slice(1)) {
-          if (!/^photo\d+"/.test(part)) continue; // photo_extra は広告枠
-          const src = /<img[^>]+src="([^"]+)"/.exec(part)?.[1];
-          const cap = /<figcaption>([^<]*)<\/figcaption>/.exec(part)?.[1] || "";
-          if (src && /^https:\/\/kuruma-news\.jp\//.test(src)) images.push({ src: src.replace(/\?v=\d+$/, ""), caption: clean(cap) });
+        if (km) {
+          const html = await fetchText(`https://kuruma-news.jp/photo/${km[1]}`, 12000);
+          for (const part of html.split(/<div class="swiper-slide" data-history="/).slice(1)) {
+            if (!/^photo\d+"/.test(part)) continue; // photo_extra は広告枠
+            const src = /<img[^>]+src="([^"]+)"/.exec(part)?.[1];
+            const cap = /<figcaption>([^<]*)<\/figcaption>/.exec(part)?.[1] || "";
+            if (src && /^https:\/\/kuruma-news\.jp\//.test(src)) images.push({ src: src.replace(/\?v=\d+$/, ""), caption: clean(cap) });
+          }
+        } else {
+          // レスポンス：記事ページの「写真ページ」リンクから写真番号を集めて、大きい画像の場所を組み立てる
+          const html = await fetchText(link.split("?")[0], 12000);
+          const alt = new Map();
+          for (const m of html.matchAll(/<img[^>]+src="\/imgs\/[^"]*\/(\d+)\.(?:jpg|webp)"[^>]*alt="([^"]*)"/g)) if (!alt.has(m[1])) alt.set(m[1], clean(m[2]));
+          const seen = new Set();
+          for (const m of html.matchAll(/href="\/article\/img\/\d{4}\/\d{2}\/\d{2}\/\d+\/(\d+)\.html"/g)) {
+            if (seen.has(m[1])) continue;
+            seen.add(m[1]);
+            images.push({ src: `https://response.jp/imgs/zoom/${m[1]}.jpg`, caption: alt.get(m[1]) || "" });
+          }
         }
-        galleryCache.set(m[1], { at: Date.now(), images });
-        if (galleryCache.size > 200) galleryCache.delete(galleryCache.keys().next().value);
+        galleryCache.set(key, { at: Date.now(), images });
+        if (galleryCache.size > 300) galleryCache.delete(galleryCache.keys().next().value);
       }
       res.writeHead(200, out);
       return res.end(JSON.stringify({ images }));
