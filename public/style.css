@@ -334,7 +334,7 @@ body.flowing { overflow: hidden; }
 .rcard > * { flex: none; }
 .rcard .rimg { max-height: min(26vh, 240px); margin: 14px auto 10px; }
 .rcard .rmeta { margin-top: 4px; }
-.rcard h2 { position: sticky; top: -10px; z-index: 3; margin: 0 -16px 0; padding: 20px 16px 8px; background: var(--card); border-bottom: 1px solid var(--line); border-radius: 14px 14px 0 0;
+.rcard h2 { position: sticky; top: -10px; z-index: 3; margin: 0 -16px 0; padding: 20px 16px 0; background: var(--card); border-bottom: 9px solid var(--card); box-shadow: 0 1px 0 var(--line); border-radius: 14px 14px 0 0;
   font-size: 18px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .rcard .rtext { flex: none; overflow: visible; min-height: 0; border-top: 0; padding: 12px 0 0; }
 .rcard .rbar.bottom { position: sticky; bottom: -10px; z-index: 3; margin: 14px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 14px 14px; }
