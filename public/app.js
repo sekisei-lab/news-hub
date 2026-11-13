@@ -922,6 +922,9 @@ function openReader(item) {
   img.onerror = () => { img.hidden = true; };
   $("rText").innerHTML = item.summary ? `<p>${esc(item.summary)}</p><p class="loading">本文を読み込み中…</p>` : `<p class="loading">本文を読み込み中…</p>`;
   $("rNote").textContent = "";
+  const gal = $("rGal");
+  gal.hidden = true; gal.innerHTML = "";
+  if (item.link.startsWith("https://kuruma-news.jp/post/")) loadGallery(item.link, token);
   $("reader").hidden = false;
   $("reader").scrollTop = 0;
   document.body.classList.add("noscroll");
@@ -943,6 +946,27 @@ function openReader(item) {
       $("rText").innerHTML = item.summary ? `<p>${esc(item.summary)}</p>` : "";
       $("rNote").textContent = "本文を取得できませんでした。「原文を読む」からご覧ください。";
     });
+}
+// 写真つき記事（くるまのニュース）：広告を除いた写真を、横にスワイプして見られるようにする
+function loadGallery(link, token) {
+  fetch(API + "/api/gallery?link=" + encodeURIComponent(link))
+    .then((r) => r.json())
+    .then((d) => {
+      if (token !== readerToken || !d.images || d.images.length < 2) return;
+      const gal = $("rGal"), n = d.images.length;
+      gal.innerHTML = '<div class="gtrack">' + d.images.map((p, k) =>
+        '<figure class="gslide"><img src="' + esc(p.src) + '" alt="" ' + (k < 2 ? "" : 'loading="lazy" ') + 'decoding="async" referrerpolicy="no-referrer"><figcaption>' + esc(p.caption || "") + "</figcaption></figure>").join("") +
+        '</div><button type="button" class="gb gprev" aria-label="前の写真">‹</button><button type="button" class="gb gnext" aria-label="次の写真">›</button><span class="gcount">1 / ' + n + "</span>";
+      const tr = gal.querySelector(".gtrack"), cnt = gal.querySelector(".gcount");
+      const idx = () => Math.round(tr.scrollLeft / tr.clientWidth);
+      tr.addEventListener("scroll", () => { cnt.textContent = (idx() + 1) + " / " + n; }, { passive: true });
+      const go = (dir) => tr.scrollTo({ left: Math.max(0, Math.min(n - 1, idx() + dir)) * tr.clientWidth, behavior: "smooth" });
+      gal.querySelector(".gprev").onclick = () => go(-1);
+      gal.querySelector(".gnext").onclick = () => go(1);
+      $("rImg").hidden = true;
+      gal.hidden = false;
+    })
+    .catch(() => {});
 }
 function closeReaderUI() {
   if (!readerOpen) return;

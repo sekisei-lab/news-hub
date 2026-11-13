@@ -338,3 +338,16 @@ body.flowing { overflow: hidden; }
   font-size: 18px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .rcard .rtext { flex: none; overflow: visible; min-height: 0; border-top: 0; padding: 12px 0 0; }
 .rcard .rbar.bottom { position: sticky; bottom: -10px; z-index: 3; margin: 14px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 14px 14px; }
+
+/* 写真ギャラリー（記事詳細）：横スワイプ。広告なし */
+.rgal { position: relative; margin: 14px 0 10px; border-radius: 10px; overflow: hidden; background: #000; }
+.rgal[hidden] { display: none; }
+.rgal .gtrack { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+.rgal .gtrack::-webkit-scrollbar { display: none; }
+.rgal .gslide { flex: 0 0 100%; scroll-snap-align: center; margin: 0; display: flex; flex-direction: column; }
+.rgal .gslide img { width: 100%; height: min(36vh, 360px); object-fit: contain; background: #000; display: block; }
+.rgal .gslide figcaption { padding: 6px 10px 8px; font-size: 12px; line-height: 1.4; color: #ddd; background: #111; min-height: 2.8em; }
+.rgal .gb { position: absolute; top: calc(min(36vh, 360px) / 2 - 20px); width: 36px; height: 40px; border: 0; border-radius: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
+.rgal .gprev { left: 6px; } .rgal .gnext { right: 6px; }
+.rgal .gcount { position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; }
+#rImg[hidden] { display: none !important; }

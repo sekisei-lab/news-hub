@@ -150,6 +150,7 @@ const ogCache = new Map();
 const DEFAULT_IMG = /amd-img\/default\.jpg|no[-_]?image|dummy|placeholder/i; // 汎用のダミー画像は「画像なし」として扱う
 const RETRY_MS = 30 * 60 * 1000; // 取得に失敗した記事は30分後にもう一度試す
 const badImg = new Map(); // link -> 表示できなかった画像URL（次回から使わない）
+const galleryCache = new Map(); // 記事ID -> { at, images }
 const retryAt = new Map(); // link -> 最後に取り直した時刻（連続リクエスト防止）
 const ogDone = (url) => { const v = ogCache.get(url); return !!v && (v.image || v.desc || Date.now() - v.at < RETRY_MS); };
 async function fetchOg(url) {
@@ -776,6 +777,35 @@ const server = http.createServer(async (req, res) => {
     const data = await extractArticle(link);
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=600" });
     return res.end(JSON.stringify(data));
+  }
+  if (url.pathname === "/api/gallery") {
+    // くるまのニュースの記事は、広告を除いた写真だけを一覧にして返す（一覧にある記事のみ・1時間キャッシュ）
+    const link = url.searchParams.get("link") || "";
+    const m = /^https:\/\/kuruma-news\.jp\/post\/(\d+)/.exec(link);
+    const known = Object.values(store.items).some((list) => list.some((i) => i.link === link));
+    const out = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=600" };
+    if (!m || !known) { res.writeHead(200, out); return res.end('{"images":[]}'); }
+    try {
+      const hit = galleryCache.get(m[1]);
+      let images = hit && Date.now() - hit.at < 3600000 ? hit.images : null;
+      if (!images) {
+        const html = await fetchText(`https://kuruma-news.jp/photo/${m[1]}`, 12000);
+        images = [];
+        for (const part of html.split(/<div class="swiper-slide" data-history="/).slice(1)) {
+          if (!/^photo\d+"/.test(part)) continue; // photo_extra は広告枠
+          const src = /<img[^>]+src="([^"]+)"/.exec(part)?.[1];
+          const cap = /<figcaption>([^<]*)<\/figcaption>/.exec(part)?.[1] || "";
+          if (src && /^https:\/\/kuruma-news\.jp\//.test(src)) images.push({ src: src.replace(/\?v=\d+$/, ""), caption: clean(cap) });
+        }
+        galleryCache.set(m[1], { at: Date.now(), images });
+        if (galleryCache.size > 200) galleryCache.delete(galleryCache.keys().next().value);
+      }
+      res.writeHead(200, out);
+      return res.end(JSON.stringify({ images }));
+    } catch {
+      res.writeHead(200, out);
+      return res.end('{"images":[]}');
+    }
   }
   if (url.pathname === "/api/image-retry") {
     // 画像が表示できなかったとき、記事ページから画像を取り直す（一覧にある記事のみ・10分に1回まで）
