@@ -327,3 +327,14 @@ body.flowing { overflow: hidden; }
 .thumb.ph span { font-size: 18px; font-weight: 700; letter-spacing: .04em; text-align: center; text-shadow: 0 1px 6px rgba(0,0,0,.35); }
 .thumb.ph:not(.ld) { aspect-ratio: 16 / 9; }
 #rImg.ph { display: none; }
+
+/* 記事詳細：全体を1枚としてスクロール。タイトルは上に固定して、戻るボタンは下に固定 */
+.reader { display: block; overflow-y: auto; overflow-x: hidden; padding: 10px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.rcard { display: block; max-height: none; overflow: visible; margin: 0 auto; padding: 0 16px; width: auto; }
+.rcard > * { flex: none; }
+.rcard .rimg { max-height: min(26vh, 240px); margin: 14px auto 10px; }
+.rcard .rmeta { margin-top: 4px; }
+.rcard h2 { position: sticky; top: -10px; z-index: 3; margin: 0 -16px 0; padding: 20px 16px 8px; background: var(--card); border-bottom: 1px solid var(--line); border-radius: 14px 14px 0 0;
+  font-size: 18px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rcard .rtext { flex: none; overflow: visible; min-height: 0; border-top: 0; padding: 12px 0 0; }
+.rcard .rbar.bottom { position: sticky; bottom: -10px; z-index: 3; margin: 14px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 14px 14px; }
