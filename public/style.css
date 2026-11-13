@@ -320,3 +320,10 @@ body.flowing { overflow: hidden; }
 .langs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .langst { font-size: 11px; color: var(--sub); margin-right: 4px; }
 .meta .orig, .rmeta .orig { margin-left: auto; color: var(--accent); border: 1px solid currentColor; border-radius: 9px; padding: 0 7px; font-size: 10px; cursor: pointer; }
+
+/* 画像がないカードの代わりの枠（ジャンルの色 + 媒体名） */
+.thumb.ph { display: flex; align-items: center; justify-content: center; aspect-ratio: 16 / 9; height: auto; padding: 12px; overflow: hidden;
+  background: linear-gradient(135deg, hsl(var(--h) 70% 38%), hsl(calc(var(--h) + 40) 75% 22%)); color: rgba(255,255,255,.92); }
+.thumb.ph span { font-size: 18px; font-weight: 700; letter-spacing: .04em; text-align: center; text-shadow: 0 1px 6px rgba(0,0,0,.35); }
+.thumb.ph:not(.ld) { aspect-ratio: 16 / 9; }
+#rImg.ph { display: none; }

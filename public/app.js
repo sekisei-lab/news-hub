@@ -77,17 +77,20 @@ function markRead(link) {
 let shown = []; // いま画面に出している記事（カード番号と対応）
 let total = 0; // 条件に合う記事の総数
 // 画像が表示できなかったら、サーバーに記事ページから取り直してもらう（1枚につき1回だけ）
+// 画像がないカード：ジャンルの色と媒体名の枠で、画像と同じ大きさの場所を埋める（通信なし・CSSだけ）
+const phHtml = (src, hue) => `<div class="thumb ph" style="--h:${hue}"><span>${esc(src)}</span></div>`;
+const toPh = (img) => { const card = img.closest(".card"); if (!card) return img.remove(); img.outerHTML = phHtml(card.dataset.src || "", card.dataset.h || 200); };
 window.retryImg = (img) => {
   const card = img.closest(".card");
-  if (!card || img.dataset.r) return img.remove();
+  if (!card || img.dataset.r) return toPh(img);
   img.dataset.r = "1";
   fetch(`${API}/api/image-retry?link=${encodeURIComponent(card.href)}&bad=${encodeURIComponent(img.src)}`)
     .then((r) => r.json())
-    .then((d) => { if (d.image) img.src = d.image; else img.remove(); })
-    .catch(() => img.remove());
+    .then((d) => { if (d.image) img.src = d.image; else toPh(img); })
+    .catch(() => toPh(img));
 };
-const cardHtml = (i, n) => `<div class="cell"><a class="card${readSet.has(i.link) ? " read" : ""}" data-n="${n}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
-        ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.classList.add('ld')" onerror="retryImg(this)">` : ""}
+const cardHtml = (i, n) => `<div class="cell"><a class="card${readSet.has(i.link) ? " read" : ""}" data-n="${n}" data-src="${esc(i.source)}" data-h="${GENRE_HUE[i.genre] ?? 200}" href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">
+        ${i.image ? `<img class="thumb" src="${esc(i.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.classList.add('ld')" onerror="retryImg(this)">` : phHtml(i.source, GENRE_HUE[i.genre] ?? 200)}
         <h2>${esc(i.title)}</h2>
         <p>${esc(i.summary || "")}</p>
         <div class="meta"><span class="tag">${esc(genres[i.genre]?.label || "")}</span><span>${esc(i.source)}</span><span>${ago(i.time, genres[i.genre]?.en)}</span></div>
