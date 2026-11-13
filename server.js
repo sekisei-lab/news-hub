@@ -775,6 +775,7 @@ const server = http.createServer(async (req, res) => {
     const known = Object.values(store.items).some((list) => list.some((i) => i.link === link));
     if (!known) { res.writeHead(404, { "Content-Type": "application/json" }); return res.end("{}"); }
     const data = await extractArticle(link);
+    if (data.image && (DEFAULT_IMG.test(data.image) || /default\.(?:jpe?g|png|webp)/i.test(data.image))) data.image = ""; // 汎用のダミー画像は「画像なし」
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=600" });
     return res.end(JSON.stringify(data));
   }
