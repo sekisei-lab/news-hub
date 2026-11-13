@@ -324,6 +324,28 @@ async function refresh() {
       return out;
     };
     store.items = build();
+    { // 画像のない記事は、同じ出来事を報じた別の記事（見出しが似ている・36時間以内）の画像を借りる
+      const nm = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+      const bg = (t) => { const s = new Set(); for (let k = 0; k < t.length - 1; k++) s.add(t.slice(k, k + 2)); return s; };
+      const jac = (a, b) => { let n = 0; for (const x of a) if (b.has(x)) n++; return n / (a.size + b.size - n || 1); };
+      const pool = { en: [], ja: [] };
+      for (const g in store.items) for (const i of store.items[g]) if (i.image) pool[GENRES[g]?.en ? "en" : "ja"].push({ gr: bg(nm(i.title)), image: i.image, time: i.time });
+      for (const g in store.items) {
+        const cands = pool[GENRES[g]?.en ? "en" : "ja"];
+        for (const i of store.items[g]) {
+          if (i.image) continue;
+          const gr = bg(nm(i.title));
+          if (gr.size < 6) continue;
+          let best = null, bs = 0.45; // これ以上似ているときだけ借りる
+          for (const c of cands) {
+            if (Math.abs(c.time - i.time) > 36 * 3600 * 1000) continue;
+            const s = jac(gr, c.gr);
+            if (s > bs) { bs = s; best = c; }
+          }
+          if (best) i.image = best.image;
+        }
+      }
+    }
     store.errors = errors;
     store.updatedAt = Date.now();
     if (global.gc) global.gc();
